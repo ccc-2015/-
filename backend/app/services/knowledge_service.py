@@ -19,6 +19,7 @@ SUPPORTED_KNOWLEDGE_EXTENSIONS = {".txt", ".md", ".csv", ".xlsx", ".xls"}
 EMBEDDING_DIMENSIONS = 64
 QUALITY_YEAR_PATTERN = re.compile(r"(20\d{2})")
 MIN_PUBLISH_QUALITY_SCORE = 65
+NEAR_DUPLICATE_SIMILARITY = 0.9
 
 
 async def save_knowledge_upload(file: UploadFile) -> Path:
@@ -161,6 +162,8 @@ def validate_document_publishable(db: Session, document: KnowledgeDocument) -> t
         reasons.append(f"检测到最新年份为 {latest_year}，低于当前 2026 报考基线。")
     if latest_year is None:
         reasons.append("未识别到政策或招生数据年份。")
+    if int(metrics.get("exact_duplicate_count") or 0) > 0:
+        reasons.append("检测到相同正文或相同来源的已存在文档。")
     if any(issue.get("severity") == "error" for issue in issues):
         reasons.append("质量报告包含错误级问题。")
 
@@ -186,6 +189,10 @@ def evaluate_document_quality(
     latest_year = max(years) if years else None
     source_url = (document.source_url or "").strip()
     source_type = (document.source_type or "").strip()
+    content_hash = _content_hash(content)
+    duplicate_candidates = _find_duplicate_candidates(db, document, content_hash)
+    exact_duplicate_count = sum(1 for candidate in duplicate_candidates if candidate["match_type"] in {"content_hash", "source_url"})
+    near_duplicate_count = sum(1 for candidate in duplicate_candidates if candidate["match_type"] == "similarity")
 
     if text_length < 80:
         issues.append(_issue("error", "正文过短，无法形成可靠知识库切片。", "text_extract"))
@@ -193,6 +200,10 @@ def evaluate_document_quality(
         issues.append(_issue("warning", "正文内容偏短，建议人工确认是否解析完整。", "text_extract"))
     if duplicate_ratio > 0.35:
         issues.append(_issue("warning", "重复行比例较高，可能存在页眉页脚或重复上传内容。", "dedup"))
+    if exact_duplicate_count:
+        issues.append(_issue("error", "检测到相同正文或相同来源的已存在文档。", "dedup"))
+    elif near_duplicate_count:
+        issues.append(_issue("warning", "检测到内容高度相似的已存在文档，建议人工确认是否重复上传。", "dedup"))
     if not document.category:
         issues.append(_issue("warning", "缺少文档分类，不利于按政策、章程或问答分层检索。", "metadata"))
     if not source_type:
@@ -231,6 +242,10 @@ def evaluate_document_quality(
         "max_chunk_size": max((len(chunk) for chunk in chunk_texts), default=0),
         "table_like_line_count": table_like_lines,
         "latest_year": latest_year,
+        "content_hash": content_hash,
+        "duplicate_candidates": duplicate_candidates,
+        "exact_duplicate_count": exact_duplicate_count,
+        "near_duplicate_count": near_duplicate_count,
     }
     return scores, issues, metrics
 
@@ -374,6 +389,62 @@ def _duplicate_line_count(text: str) -> int:
         else:
             seen.add(normalized)
     return duplicates
+
+
+def _content_hash(text: str) -> str:
+    normalized = _normalize_for_dedup(text)
+    return hashlib.sha1(normalized.encode("utf-8")).hexdigest()
+
+
+def _find_duplicate_candidates(db: Session, document: KnowledgeDocument, content_hash: str) -> list[dict[str, Any]]:
+    current_tokens = set(tokenize_for_retrieval(document.content or ""))
+    current_source = (document.source_url or "").strip()
+    current_title = (document.title or "").strip()
+    candidates: list[dict[str, Any]] = []
+    stmt = select(KnowledgeDocument).where(KnowledgeDocument.id != document.id).order_by(KnowledgeDocument.id.desc()).limit(500)
+    for other in db.scalars(stmt):
+        match_type = ""
+        score = 0.0
+        other_hash = _content_hash(other.content or "")
+        other_source = (other.source_url or "").strip()
+        other_title = (other.title or "").strip()
+        if content_hash and content_hash == other_hash:
+            match_type = "content_hash"
+            score = 1.0
+        elif current_source and other_source and current_source == other_source:
+            match_type = "source_url"
+            score = 1.0
+        elif current_title and other_title and current_title == other_title:
+            score = _jaccard_similarity(current_tokens, set(tokenize_for_retrieval(other.content or "")))
+            if score >= 0.75:
+                match_type = "title_similarity"
+        else:
+            score = _jaccard_similarity(current_tokens, set(tokenize_for_retrieval(other.content or "")))
+            if score >= NEAR_DUPLICATE_SIMILARITY:
+                match_type = "similarity"
+        if match_type:
+            candidates.append(
+                {
+                    "document_id": other.id,
+                    "title": other.title,
+                    "status": other.status,
+                    "source_url": other.source_url,
+                    "match_type": match_type,
+                    "score": round(score, 4),
+                }
+            )
+    candidates.sort(key=lambda item: (item["score"], item["document_id"]), reverse=True)
+    return candidates[:5]
+
+
+def _normalize_for_dedup(text: str) -> str:
+    return re.sub(r"\s+", "", text).lower()
+
+
+def _jaccard_similarity(left: set[str], right: set[str]) -> float:
+    if not left or not right:
+        return 0.0
+    return len(left & right) / len(left | right)
 
 
 def _table_like_line_count(text: str) -> int:

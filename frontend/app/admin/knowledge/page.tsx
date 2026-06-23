@@ -122,6 +122,16 @@ function chunkEmbeddingDimensions(chunk: KnowledgeChunk) {
   return typeof dimensions === "number" ? dimensions : null;
 }
 
+function duplicateCandidates(report: KnowledgeCleaningReport | null) {
+  const value = report?.metrics_json?.duplicate_candidates;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is { document_id: number; title: string; status: string; match_type: string; score: number } => {
+    return Boolean(item) && typeof item === "object" && "document_id" in item && "title" in item;
+  });
+}
+
 export default function KnowledgePage() {
   const [documents, setDocuments] = useState<AdminKnowledgeDocument[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<AdminKnowledgeDocument | null>(null);
@@ -143,6 +153,7 @@ export default function KnowledgePage() {
 
   const selectedMeta = selectedDocument ? statusMeta[selectedDocument.status] : null;
   const publishedCount = useMemo(() => documents.filter((document) => document.status === "published").length, [documents]);
+  const duplicates = useMemo(() => duplicateCandidates(cleaningReport), [cleaningReport]);
 
   async function loadDocuments(nextFilters = { keyword, status, category }) {
     const session = getStoredSession();
@@ -691,6 +702,22 @@ export default function KnowledgePage() {
                       <div>重复行：{String(cleaningReport.metrics_json?.duplicate_line_count ?? 0)}</div>
                       <div>最新年份：{String(cleaningReport.metrics_json?.latest_year ?? "未识别")}</div>
                     </div>
+                    {duplicates.length ? (
+                      <div className="rounded-md border border-border p-3">
+                        <div className="text-sm font-medium">疑似重复文档</div>
+                        <div className="mt-2 space-y-2">
+                          {duplicates.map((item) => (
+                            <div key={item.document_id} className="flex items-center justify-between gap-3 text-xs">
+                              <div>
+                                <div className="font-medium">#{item.document_id} {item.title}</div>
+                                <div className="mt-1 text-muted-foreground">{item.match_type} · {item.status}</div>
+                              </div>
+                              <Badge variant={item.score >= 1 ? "danger" : "warning"}>{Math.round(item.score * 100)}%</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="mt-3 rounded-md border border-border px-3 py-8 text-center text-sm text-muted-foreground">
