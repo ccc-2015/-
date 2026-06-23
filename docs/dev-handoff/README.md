@@ -9,11 +9,12 @@
 - `runbook.md`：本地启动、默认账号、常用检查命令。
 - `recovery.md`：开发中断、服务异常、Git 状态异常时的恢复方式。
 - `next-steps.md`：建议继续开发路线和验收点。
+- `embedding-plan.md`：真实 embedding provider 和 pgvector 迁移方案。
 
 ## 当前基线
 
 - 当前分支：`main`
 - 当前远端：`origin/main`
-- 最新关键提交：`65cddbf feat: add knowledge upload and chunked agent retrieval`
+- 最新关键提交：以 `git log --oneline -5` 为准。
 - 前端：Next.js，默认端口 `3000`
 - 后端：FastAPI，默认端口 `8000`

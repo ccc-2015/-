@@ -6,9 +6,9 @@
 
 建议步骤：
 
-1. 评估真实 embedding 模型和成本。
-2. 选择向量存储方案：开发期可保留 SQLite metadata，最终建议 PostgreSQL + pgvector。
-3. 将 `local_hash_v1` 替换为真实 embedding，并保留关键词混合召回。
+1. 按 `docs/dev-handoff/embedding-plan.md` 接入真实 embedding provider。
+2. 新增 `knowledge_embeddings` 表或切 PostgreSQL + pgvector，停止用 JSON 扫描向量。
+3. 将 `local_hash_v1` 作为 fallback，默认检索切到真实 embedding，并保留关键词混合召回。
 4. 继续增强语义相似去重，减少同源政策、院校章程不同年份之间的误判。
 
 验收点：

@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24
     backend_cors_origins: str = "http://127.0.0.1:3000,http://localhost:3000"
     upload_dir: Path = Field(default=Path("app/data/uploads"))
+    embedding_provider: str = "local_hash_v1"
+    embedding_dimensions: int = 64
 
     @property
     def cors_origins(self) -> list[str]:

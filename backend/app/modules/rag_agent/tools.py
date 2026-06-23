@@ -5,7 +5,7 @@ from app.models.admission import AdmissionPlan, HistoricalAdmission, School, Sch
 from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
 from app.models.profile import StudentProfile
 from app.models.user import User
-from app.services.knowledge_service import build_local_embedding, cosine_similarity, tokenize_for_retrieval
+from app.services.embedding_service import cosine_similarity, embed_text, embedding_provider, tokenize_for_retrieval
 from app.services.recommendation_service import generate_recommendations
 
 
@@ -101,7 +101,7 @@ def generate_user_recommendations(db: Session, user_id: int, limit: int = 5) -> 
 
 def search_published_knowledge(db: Session, query: str, limit: int = 5) -> dict:
     keywords = _extract_keywords(query)
-    query_embedding = build_local_embedding(query)
+    query_embedding = embed_text(query)
     query_tokens = set(tokenize_for_retrieval(query))
     rows = list(
         db.execute(
@@ -138,7 +138,7 @@ def search_published_knowledge(db: Session, query: str, limit: int = 5) -> dict:
             }
             for score_detail, chunk, document in scored[:limit]
         ]
-        return {"count": len(items), "items": items, "retrieval": "hybrid_local_hash_v1"}
+        return {"count": len(items), "items": items, "retrieval": f"hybrid_{embedding_provider()}"}
 
     fallback_stmt = (
         select(KnowledgeChunk, KnowledgeDocument)
@@ -251,5 +251,5 @@ def _knowledge_score(
         "keyword_score": round(keyword_score, 4),
         "title_score": round(title_score, 4),
         "tag_score": round(tag_score, 4),
-        "retrieval": "hybrid_local_hash_v1",
+        "retrieval": f"hybrid_{embedding_provider()}",
     }
