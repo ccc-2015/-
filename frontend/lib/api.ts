@@ -1,5 +1,7 @@
 import type {
   AdminMajor,
+  AdminAgentConversationDetail,
+  AdminAgentConversationSummary,
   AdminKnowledgeDocument,
   AdminKnowledgeStatus,
   AdminSchool,
@@ -258,6 +260,19 @@ export async function sendAgentMessage({
       thread_id: threadId
     })
   });
+}
+
+export async function listAdminAgentConversations(token: string, limit = 50) {
+  return request<AdminAgentConversationSummary[]>(
+    withQuery("/api/admin/agent/conversations", {
+      limit: String(limit)
+    }),
+    { token }
+  );
+}
+
+export async function getAdminAgentConversation({ token, conversationId }: { token: string; conversationId: number }) {
+  return request<AdminAgentConversationDetail>(`/api/admin/agent/conversations/${conversationId}`, { token });
 }
 
 function withQuery(path: string, params: Record<string, string | undefined>) {

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
+    admin_agent,
     admin_data,
     admin_knowledge,
     admin_schools,
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(recommendations.router, prefix="/api/recommendations", tags=["recommendations"])
     app.include_router(volunteer.router, prefix="/api/volunteer", tags=["volunteer"])
     app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
+    app.include_router(admin_agent.router, prefix="/api/admin", tags=["admin-agent"])
     app.include_router(admin_data.router, prefix="/api/admin/data", tags=["admin-data"])
     app.include_router(admin_knowledge.router, prefix="/api/admin", tags=["admin-knowledge"])
     app.include_router(admin_schools.router, prefix="/api/admin", tags=["admin-schools"])

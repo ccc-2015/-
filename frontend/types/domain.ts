@@ -293,6 +293,60 @@ export interface AgentChatResponse {
   citations: AgentCitation[];
 }
 
+export interface AdminAgentMessage {
+  id: number;
+  role: "user" | "assistant" | string;
+  content: string;
+  created_at: string;
+}
+
+export interface AdminAgentToolCall {
+  id: number;
+  tool_name: string;
+  arguments?: Record<string, unknown> | null;
+  result_summary?: string | null;
+  created_at: string;
+}
+
+export interface AdminAgentCitationLog {
+  id: number;
+  source_type: string;
+  source_title: string;
+  source_url?: string | null;
+  metadata_json?: AgentCitationMetadata | null;
+}
+
+export interface AdminAgentNodeRun {
+  id: number;
+  thread_id: string;
+  node_name: string;
+  status: string;
+  output_snapshot?: AgentEvent | null;
+  created_at: string;
+}
+
+export interface AdminAgentConversationSummary {
+  id: number;
+  user_id: number;
+  username: string;
+  display_name: string;
+  title?: string | null;
+  thread_id?: string | null;
+  message_count: number;
+  tool_call_count: number;
+  citation_count: number;
+  node_run_count: number;
+  last_message_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminAgentConversationDetail extends AdminAgentConversationSummary {
+  messages: AdminAgentMessage[];
+  tool_calls: AdminAgentToolCall[];
+  citations: AdminAgentCitationLog[];
+  node_runs: AdminAgentNodeRun[];
+}
+
 export interface AdminSchool {
   id: number;
   code: string;
