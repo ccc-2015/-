@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GripVertical, RefreshCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, RefreshCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ export default function PlanPage() {
   const [batch, setBatch] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [savedPlan, setSavedPlan] = useState<VolunteerPlan | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [policyResult, setPolicyResult] = useState<PolicyCheckResponse | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -60,6 +61,7 @@ export default function PlanPage() {
       if (existingPlan) {
         const restoredItems = restoreItemsFromPlan(existingPlan);
         setSavedPlan(existingPlan);
+        setHasUnsavedChanges(false);
         setBatch(existingPlan.batch);
         setItems(restoredItems);
         setWarnings(restoredItems.length ? [] : ["已找到保存的方案，但缺少推荐快照，请刷新候选后重新保存。"]);
@@ -75,6 +77,7 @@ export default function PlanPage() {
       setBatch(result.batch ?? null);
       setWarnings(result.warnings);
       setSavedPlan(null);
+      setHasUnsavedChanges(false);
       setPolicyResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "方案候选加载失败");
@@ -101,6 +104,12 @@ export default function PlanPage() {
       setItems(result.items);
       setBatch(result.batch ?? null);
       setWarnings(result.warnings);
+      if (savedPlan && result.batch === savedPlan.batch) {
+        setHasUnsavedChanges(true);
+      } else {
+        setSavedPlan(null);
+        setHasUnsavedChanges(false);
+      }
       setPolicyResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "方案候选加载失败");
@@ -140,6 +149,7 @@ export default function PlanPage() {
         }
       });
       setSavedPlan(plan);
+      setHasUnsavedChanges(false);
       setPolicyResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "方案保存失败");
@@ -162,6 +172,7 @@ export default function PlanPage() {
     try {
       await deleteVolunteerPlan({ token: session.token, planId: savedPlan.id });
       setSavedPlan(null);
+      setHasUnsavedChanges(false);
       setPolicyResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "方案删除失败");
@@ -173,6 +184,21 @@ export default function PlanPage() {
   useEffect(() => {
     loadPlanCandidates();
   }, []);
+
+  function moveItem(index: number, direction: -1 | 1) {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= items.length) {
+      return;
+    }
+
+    const nextItems = [...items];
+    [nextItems[index], nextItems[nextIndex]] = [nextItems[nextIndex], nextItems[index]];
+    setItems(nextItems);
+    setPolicyResult(null);
+    if (savedPlan) {
+      setHasUnsavedChanges(true);
+    }
+  }
 
   async function handlePolicyCheck() {
     const session = getStoredSession();
@@ -192,7 +218,7 @@ export default function PlanPage() {
     setIsChecking(true);
     setError("");
     try {
-      const result = savedPlan
+      const result = savedPlan && !hasUnsavedChanges
         ? (await checkVolunteerPlan({ token: session.token, planId: savedPlan.id })).policy_result
         : await checkPolicy({
             token: session.token,
@@ -220,7 +246,9 @@ export default function PlanPage() {
                 <CardTitle>{batch ? `${batch}方案草案` : "方案草案"}</CardTitle>
                 <CardDescription>
                   {savedPlan
-                    ? `已保存：${savedPlan.title} · ${new Date(savedPlan.updated_at).toLocaleString()}`
+                    ? `已保存：${savedPlan.title} · ${new Date(savedPlan.updated_at).toLocaleString()}${
+                        hasUnsavedChanges ? " · 有未保存调整" : ""
+                      }`
                     : "当前按推荐引擎排序生成候选，可保存为个人志愿方案"}
                 </CardDescription>
               </div>
@@ -231,7 +259,7 @@ export default function PlanPage() {
                 </Button>
                 <Button variant="outline" onClick={handleSavePlan} disabled={isSaving || isLoading || items.length === 0}>
                   <Save className="h-4 w-4" />
-                  {isSaving ? "保存中..." : savedPlan ? "覆盖保存" : "保存方案"}
+                  {isSaving ? "保存中..." : savedPlan ? (hasUnsavedChanges ? "保存调整" : "覆盖保存") : "保存方案"}
                 </Button>
                 <Button variant="outline" onClick={handlePolicyCheck} disabled={isChecking || isLoading || (!savedPlan && items.length === 0)}>
                   <ShieldCheck className="h-4 w-4" />
@@ -266,8 +294,32 @@ export default function PlanPage() {
             ) : null}
             {items.map((item, index) => (
               <div key={item.group_id} className="flex gap-3 rounded-md border border-border p-4">
-                <div className="mt-1 text-muted-foreground">
+                <div className="flex w-10 shrink-0 flex-col items-center gap-1 text-muted-foreground">
                   <GripVertical className="h-5 w-5" />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="上移志愿"
+                    aria-label="上移志愿"
+                    onClick={() => moveItem(index, -1)}
+                    disabled={index === 0 || isLoading || isSaving}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="下移志愿"
+                    aria-label="下移志愿"
+                    onClick={() => moveItem(index, 1)}
+                    disabled={index === items.length - 1 || isLoading || isSaving}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
                 </div>
                 <div className="flex-1">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
