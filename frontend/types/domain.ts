@@ -271,3 +271,33 @@ export interface HistoricalAdmission {
   plan_count?: number | null;
   raw_data?: Record<string, unknown> | null;
 }
+
+export interface PolicyCheckItem {
+  group_id: number;
+  order?: number | null;
+}
+
+export interface PolicyGroupCheckResult {
+  group_id: number;
+  order?: number | null;
+  passed: boolean;
+  errors: string[];
+  warnings: string[];
+  school_name?: string | null;
+  group_name?: string | null;
+  batch?: string | null;
+  subject_track?: string | null;
+  subject_requirements?: string | null;
+}
+
+export interface PolicyCheckResponse {
+  passed: boolean;
+  batch: string;
+  max_groups: number;
+  checked_group_count: number;
+  errors: string[];
+  warnings: string[];
+  explanations: string[];
+  group_results: PolicyGroupCheckResult[];
+  parallel_volunteer_rule: string;
+}

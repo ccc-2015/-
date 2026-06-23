@@ -9,6 +9,8 @@ import type {
   ImportDataType,
   ImportJob,
   ImportUploadResponse,
+  PolicyCheckItem,
+  PolicyCheckResponse,
   ScoreSegment,
   StudentProfile
 } from "@/types/domain";
@@ -318,5 +320,24 @@ export async function confirmImportJob({
     method: "POST",
     token,
     body: JSON.stringify({ field_mapping: fieldMapping })
+  });
+}
+
+export async function checkPolicy({
+  token,
+  batch,
+  groupItems
+}: {
+  token: string;
+  batch: string;
+  groupItems: PolicyCheckItem[];
+}) {
+  return request<PolicyCheckResponse>("/api/policy/check", {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      batch,
+      group_items: groupItems
+    })
   });
 }

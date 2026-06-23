@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.modules.rag_agent.state import AgentState
-from app.modules.rag_agent.tools import get_data_summary, search_school_groups
+from app.modules.rag_agent.tools import get_data_summary, get_student_profile_summary, search_school_groups
 
 
 def intent_node(state: AgentState) -> AgentState:
@@ -18,9 +18,11 @@ def intent_node(state: AgentState) -> AgentState:
 def make_tool_node(db: Session):
     def tool_node(state: AgentState) -> AgentState:
         summary = get_data_summary(db)
+        profile_summary = get_student_profile_summary(db, state["user_id"])
         groups = search_school_groups(db)
         tool_calls = state.get("tool_calls", []) + [
             {"tool_name": "get_data_summary", "result": summary},
+            {"tool_name": "get_student_profile", "result": profile_summary},
             {"tool_name": "search_school_groups", "result": {"count": groups["count"]}},
         ]
         citations = state.get("citations", []) + [{"source_type": "database", "source_title": "本地招生数据", "metadata": summary}]

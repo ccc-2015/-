@@ -2,6 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.admission import School, SchoolMajorGroup
+from app.models.profile import StudentProfile
 
 
 def search_school_groups(db: Session, keyword: str | None = None) -> dict:
@@ -29,3 +30,19 @@ def get_data_summary(db: Session) -> dict:
     school_count = db.scalar(select(func.count()).select_from(School)) or 0
     group_count = db.scalar(select(func.count()).select_from(SchoolMajorGroup)) or 0
     return {"school_count": school_count, "group_count": group_count}
+
+
+def get_student_profile_summary(db: Session, user_id: int) -> dict:
+    profile = db.scalar(select(StudentProfile).where(StudentProfile.user_id == user_id))
+    if profile is None:
+        return {"exists": False}
+    return {
+        "exists": True,
+        "year": profile.year,
+        "province": profile.province,
+        "score": profile.score,
+        "rank": profile.rank,
+        "subject_track": profile.subject_track,
+        "selected_subjects": profile.selected_subjects,
+        "target_batches": profile.target_batches,
+    }
