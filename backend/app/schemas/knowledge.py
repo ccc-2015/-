@@ -39,3 +39,21 @@ class KnowledgeDocumentOut(BaseModel):
     updated_by: int | None = None
     created_at: datetime
     updated_at: datetime
+    chunk_count: int = 0
+
+
+class KnowledgeChunkOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    document_id: int
+    chunk_index: int
+    content: str
+    embedding_id: str | None = None
+    metadata_json: dict | None = None
+    created_at: datetime
+
+
+class KnowledgeChunkRebuildResponse(BaseModel):
+    document_id: int
+    chunk_count: int

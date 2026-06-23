@@ -156,6 +156,50 @@ export interface KnowledgeDocument {
   updatedAt: string;
 }
 
+export type AdminKnowledgeStatus = "draft" | "published" | "archived";
+
+export interface AdminKnowledgeDocument {
+  id: number;
+  title: string;
+  category?: string | null;
+  content: string;
+  source_type?: string | null;
+  source_url?: string | null;
+  status: AdminKnowledgeStatus;
+  tags?: string[] | null;
+  version: number;
+  created_by?: number | null;
+  updated_by?: number | null;
+  created_at: string;
+  updated_at: string;
+  chunk_count: number;
+}
+
+export interface KnowledgeDocumentPayload {
+  title: string;
+  category?: string | null;
+  content: string;
+  source_type?: string | null;
+  source_url?: string | null;
+  tags?: string[] | null;
+  status: AdminKnowledgeStatus;
+}
+
+export interface KnowledgeChunk {
+  id: number;
+  document_id: number;
+  chunk_index: number;
+  content: string;
+  embedding_id?: string | null;
+  metadata_json?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface KnowledgeChunkRebuildResponse {
+  document_id: number;
+  chunk_count: number;
+}
+
 export interface CleaningReport {
   documentId: string;
   textExtractScore: number;

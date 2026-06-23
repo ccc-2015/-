@@ -21,20 +21,37 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 - `GET /api/health`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
+- `GET /api/profile/me`
+- `PUT /api/profile/me`
+- `GET /api/score/rank`
+- `GET /api/score/batch-lines`
+- `POST /api/policy/check`
+- `POST /api/admission/search-groups`
+- `GET /api/admission/groups/{group_id}`
+- `POST /api/recommendations/generate`
 - `GET /api/admin/users`
 - `POST /api/admin/users`
 - `PATCH /api/admin/users/{user_id}`
 - `GET /api/admin/roles`
 - `POST /api/admin/data/import`
 - `GET /api/admin/data/import-jobs`
+- `GET /api/admin/data/import-jobs/{job_id}`
 - `POST /api/admin/data/import-jobs/{job_id}/confirm`
 - `GET /api/admin/universities`
 - `GET /api/admin/majors`
 - `GET /api/admin/school-major-groups`
+- `GET /api/admin/batch-lines`
+- `GET /api/admin/score-segments`
+- `GET /api/admin/admission-plans`
+- `GET /api/admin/historical-admissions`
 - `GET /api/admin/knowledge/documents`
 - `POST /api/admin/knowledge/documents`
+- `POST /api/admin/knowledge/documents/upload`
+- `GET /api/admin/knowledge/documents/{document_id}`
 - `PATCH /api/admin/knowledge/documents/{document_id}`
 - `DELETE /api/admin/knowledge/documents/{document_id}`
+- `POST /api/admin/knowledge/documents/{document_id}/chunks/rebuild`
+- `GET /api/admin/knowledge/documents/{document_id}/chunks`
 - `POST /api/agent/chat`
 
 ## 当前数据导入类型
@@ -44,5 +61,9 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 - `schools`
 - `majors`
 - `school_major_groups`
+- `batch_lines`
+- `score_segments`
+- `admission_plans`
+- `historical_admissions`
 
-后续建议按规划书继续补齐招生计划、历年录取、一分一段、批次线和知识库切片向量化流程。
+当前知识库已支持文本型文档的创建、查询、发布、归档、删除，以及 `.txt`、`.md`、`.csv`、`.xlsx`、`.xls` 文件上传解析和切片重建。后续建议按规划书继续补齐清洗质量报告、向量化、RAG 检索、志愿方案保存和报告生成流程。

@@ -1,5 +1,7 @@
 import type {
   AdminMajor,
+  AdminKnowledgeDocument,
+  AdminKnowledgeStatus,
   AdminSchool,
   AgentChatResponse,
   AdmissionPlan,
@@ -9,6 +11,9 @@ import type {
   ImportDataType,
   ImportJob,
   ImportUploadResponse,
+  KnowledgeChunk,
+  KnowledgeChunkRebuildResponse,
+  KnowledgeDocumentPayload,
   PolicyCheckItem,
   PolicyCheckResponse,
   RankLookupResponse,
@@ -63,6 +68,10 @@ async function request<T>(path: string, options: ApiRequestOptions = {}): Promis
     }
 
     throw new ApiError(message, response.status);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;
@@ -262,6 +271,103 @@ export async function listAdminSchools(token: string, keyword?: string) {
 
 export async function listAdminMajors(token: string, keyword?: string) {
   return request<AdminMajor[]>(withQuery("/api/admin/majors", { keyword }), { token });
+}
+
+export async function listKnowledgeDocuments(
+  token: string,
+  filters: { keyword?: string; status?: AdminKnowledgeStatus | ""; category?: string } = {}
+) {
+  return request<AdminKnowledgeDocument[]>(
+    withQuery("/api/admin/knowledge/documents", {
+      keyword: filters.keyword,
+      status: filters.status || undefined,
+      category: filters.category
+    }),
+    { token }
+  );
+}
+
+export async function createKnowledgeDocument({
+  token,
+  payload
+}: {
+  token: string;
+  payload: KnowledgeDocumentPayload;
+}) {
+  return request<AdminKnowledgeDocument>("/api/admin/knowledge/documents", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateKnowledgeDocument({
+  token,
+  documentId,
+  payload
+}: {
+  token: string;
+  documentId: number;
+  payload: Partial<KnowledgeDocumentPayload>;
+}) {
+  return request<AdminKnowledgeDocument>(`/api/admin/knowledge/documents/${documentId}`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteKnowledgeDocument({ token, documentId }: { token: string; documentId: number }) {
+  await request<void>(`/api/admin/knowledge/documents/${documentId}`, {
+    method: "DELETE",
+    token
+  });
+}
+
+export async function uploadKnowledgeDocument({
+  token,
+  file,
+  payload
+}: {
+  token: string;
+  file: File;
+  payload: Omit<KnowledgeDocumentPayload, "content">;
+}) {
+  const formData = new FormData();
+  formData.set("file", file);
+  formData.set("status", payload.status);
+  if (payload.title) {
+    formData.set("title", payload.title);
+  }
+  if (payload.category) {
+    formData.set("category", payload.category);
+  }
+  if (payload.source_type) {
+    formData.set("source_type", payload.source_type);
+  }
+  if (payload.source_url) {
+    formData.set("source_url", payload.source_url);
+  }
+  if (payload.tags?.length) {
+    formData.set("tags", payload.tags.join("、"));
+  }
+
+  return request<AdminKnowledgeDocument>("/api/admin/knowledge/documents/upload", {
+    method: "POST",
+    token,
+    body: formData
+  });
+}
+
+export async function rebuildKnowledgeChunks({ token, documentId }: { token: string; documentId: number }) {
+  return request<KnowledgeChunkRebuildResponse>(`/api/admin/knowledge/documents/${documentId}/chunks/rebuild`, {
+    method: "POST",
+    token
+  });
+}
+
+export async function listKnowledgeChunks({ token, documentId }: { token: string; documentId: number }) {
+  return request<KnowledgeChunk[]>(`/api/admin/knowledge/documents/${documentId}/chunks`, { token });
 }
 
 export async function listBatchLines(token: string, filters: { year?: string; subjectTrack?: string; batch?: string } = {}) {
