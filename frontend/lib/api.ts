@@ -2,10 +2,14 @@ import type {
   AdminMajor,
   AdminSchool,
   AgentChatResponse,
+  AdmissionPlan,
+  BatchLine,
   CurrentUser,
+  HistoricalAdmission,
   ImportDataType,
   ImportJob,
   ImportUploadResponse,
+  ScoreSegment,
   StudentProfile
 } from "@/types/domain";
 
@@ -232,6 +236,49 @@ export async function listAdminSchools(token: string, keyword?: string) {
 
 export async function listAdminMajors(token: string, keyword?: string) {
   return request<AdminMajor[]>(withQuery("/api/admin/majors", { keyword }), { token });
+}
+
+export async function listBatchLines(token: string, filters: { year?: string; subjectTrack?: string; batch?: string } = {}) {
+  return request<BatchLine[]>(
+    withQuery("/api/admin/batch-lines", {
+      year: filters.year,
+      subject_track: filters.subjectTrack,
+      batch: filters.batch
+    }),
+    { token }
+  );
+}
+
+export async function listScoreSegments(token: string, filters: { year?: string; subjectTrack?: string } = {}) {
+  return request<ScoreSegment[]>(
+    withQuery("/api/admin/score-segments", {
+      year: filters.year,
+      subject_track: filters.subjectTrack
+    }),
+    { token }
+  );
+}
+
+export async function listAdmissionPlans(token: string, filters: { year?: string; subjectTrack?: string; batch?: string } = {}) {
+  return request<AdmissionPlan[]>(
+    withQuery("/api/admin/admission-plans", {
+      year: filters.year,
+      subject_track: filters.subjectTrack,
+      batch: filters.batch
+    }),
+    { token }
+  );
+}
+
+export async function listHistoricalAdmissions(token: string, filters: { year?: string; subjectTrack?: string; batch?: string } = {}) {
+  return request<HistoricalAdmission[]>(
+    withQuery("/api/admin/historical-admissions", {
+      year: filters.year,
+      subject_track: filters.subjectTrack,
+      batch: filters.batch
+    }),
+    { token }
+  );
 }
 
 export async function listImportJobs(token: string) {

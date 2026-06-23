@@ -198,7 +198,14 @@ export interface AdminMajor {
   description?: string | null;
 }
 
-export type ImportDataType = "schools" | "majors" | "school_major_groups";
+export type ImportDataType =
+  | "schools"
+  | "majors"
+  | "school_major_groups"
+  | "batch_lines"
+  | "score_segments"
+  | "admission_plans"
+  | "historical_admissions";
 
 export interface ImportJob {
   id: number;
@@ -218,4 +225,49 @@ export interface ImportUploadResponse {
   job: ImportJob;
   required_fields: string[];
   optional_fields: string[];
+}
+
+export interface BatchLine {
+  id: number;
+  year: number;
+  subject_track: string;
+  batch: string;
+  score: number;
+  rank?: number | null;
+}
+
+export interface ScoreSegment {
+  id: number;
+  year: number;
+  subject_track: string;
+  score: number;
+  rank: number;
+  cumulative_count?: number | null;
+}
+
+export interface AdmissionPlan {
+  id: number;
+  year: number;
+  school_id: number;
+  group_id?: number | null;
+  major_id?: number | null;
+  batch: string;
+  subject_track: string;
+  plan_count: number;
+  raw_data?: Record<string, unknown> | null;
+}
+
+export interface HistoricalAdmission {
+  id: number;
+  year: number;
+  school_id: number;
+  group_id?: number | null;
+  batch: string;
+  subject_track: string;
+  min_score?: number | null;
+  min_rank?: number | null;
+  avg_score?: number | null;
+  max_score?: number | null;
+  plan_count?: number | null;
+  raw_data?: Record<string, unknown> | null;
 }

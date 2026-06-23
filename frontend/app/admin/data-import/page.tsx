@@ -15,7 +15,11 @@ import type { ImportDataType, ImportJob, ImportUploadResponse } from "@/types/do
 const dataTypes: Array<{ value: ImportDataType; label: string; helper: string }> = [
   { value: "schools", label: "院校基础信息", helper: "code、name 为必填字段" },
   { value: "majors", label: "专业基础信息", helper: "code、name 为必填字段" },
-  { value: "school_major_groups", label: "院校专业组", helper: "需先导入院校基础信息" }
+  { value: "school_major_groups", label: "院校专业组", helper: "需先导入院校基础信息" },
+  { value: "batch_lines", label: "批次控制线", helper: "year、subject_track、batch、score 为必填字段" },
+  { value: "score_segments", label: "一分一段表", helper: "year、subject_track、score、rank 为必填字段" },
+  { value: "admission_plans", label: "招生计划", helper: "需先导入院校；可选 group_code、major_code" },
+  { value: "historical_admissions", label: "历年录取数据", helper: "需先导入院校；可选 group_code 和分数位次字段" }
 ];
 
 function statusLabel(status: string) {

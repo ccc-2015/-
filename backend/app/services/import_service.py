@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.admission import ImportJob, Major, School, SchoolMajorGroup
+from app.models.admission import AdmissionPlan, BatchLine, HistoricalAdmission, ImportJob, Major, School, SchoolMajorGroup, ScoreSegment
 from app.models.user import User
 
 settings = get_settings()
@@ -24,6 +24,22 @@ IMPORT_SCHEMAS: dict[str, dict[str, list[str]]] = {
     "school_major_groups": {
         "required": ["year", "school_code", "group_code", "group_name", "batch", "subject_track"],
         "optional": ["subject_requirements", "tuition_note"],
+    },
+    "batch_lines": {
+        "required": ["year", "subject_track", "batch", "score"],
+        "optional": ["rank"],
+    },
+    "score_segments": {
+        "required": ["year", "subject_track", "score", "rank"],
+        "optional": ["cumulative_count"],
+    },
+    "admission_plans": {
+        "required": ["year", "school_code", "batch", "subject_track", "plan_count"],
+        "optional": ["group_code", "major_code"],
+    },
+    "historical_admissions": {
+        "required": ["year", "school_code", "batch", "subject_track"],
+        "optional": ["group_code", "min_score", "min_rank", "avg_score", "max_score", "plan_count"],
     },
 }
 
@@ -114,6 +130,14 @@ def confirm_import_job(db: Session, job: ImportJob, field_mapping: dict[str, str
         _import_majors(db, mapped)
     elif job.data_type == "school_major_groups":
         _import_school_groups(db, mapped)
+    elif job.data_type == "batch_lines":
+        _import_batch_lines(db, mapped)
+    elif job.data_type == "score_segments":
+        _import_score_segments(db, mapped)
+    elif job.data_type == "admission_plans":
+        _import_admission_plans(db, mapped)
+    elif job.data_type == "historical_admissions":
+        _import_historical_admissions(db, mapped)
     else:
         raise ValueError(f"Unsupported data_type: {job.data_type}")
 
@@ -195,8 +219,134 @@ def _import_school_groups(db: Session, records: list[dict[str, Any]]) -> None:
         group.tuition_note = _optional_str(row.get("tuition_note"))
 
 
+def _import_batch_lines(db: Session, records: list[dict[str, Any]]) -> None:
+    for row in records:
+        year = int(row["year"])
+        subject_track = str(row["subject_track"]).strip()
+        batch = str(row["batch"]).strip()
+        line = db.scalar(
+            select(BatchLine).where(
+                BatchLine.year == year,
+                BatchLine.subject_track == subject_track,
+                BatchLine.batch == batch,
+            )
+        )
+        if line is None:
+            line = BatchLine(year=year, subject_track=subject_track, batch=batch, score=int(row["score"]))
+            db.add(line)
+        line.score = int(row["score"])
+        line.rank = _optional_int(row.get("rank"))
+
+
+def _import_score_segments(db: Session, records: list[dict[str, Any]]) -> None:
+    for row in records:
+        year = int(row["year"])
+        subject_track = str(row["subject_track"]).strip()
+        score = int(row["score"])
+        segment = db.scalar(
+            select(ScoreSegment).where(
+                ScoreSegment.year == year,
+                ScoreSegment.subject_track == subject_track,
+                ScoreSegment.score == score,
+            )
+        )
+        if segment is None:
+            segment = ScoreSegment(year=year, subject_track=subject_track, score=score, rank=int(row["rank"]))
+            db.add(segment)
+        segment.rank = int(row["rank"])
+        segment.cumulative_count = _optional_int(row.get("cumulative_count"))
+
+
+def _import_admission_plans(db: Session, records: list[dict[str, Any]]) -> None:
+    for row in records:
+        year = int(row["year"])
+        school = _get_school_by_code(db, row["school_code"])
+        group = _get_group_by_code(db, school.id, year, row.get("group_code"))
+        major = _get_major_by_code(db, row.get("major_code"))
+        plan = AdmissionPlan(
+            year=year,
+            school_id=school.id,
+            group_id=group.id if group else None,
+            major_id=major.id if major else None,
+            batch=str(row["batch"]).strip(),
+            subject_track=str(row["subject_track"]).strip(),
+            plan_count=int(row["plan_count"]),
+            raw_data=row,
+        )
+        db.add(plan)
+
+
+def _import_historical_admissions(db: Session, records: list[dict[str, Any]]) -> None:
+    for row in records:
+        year = int(row["year"])
+        school = _get_school_by_code(db, row["school_code"])
+        group = _get_group_by_code(db, school.id, year, row.get("group_code"))
+        admission = HistoricalAdmission(
+            year=year,
+            school_id=school.id,
+            group_id=group.id if group else None,
+            batch=str(row["batch"]).strip(),
+            subject_track=str(row["subject_track"]).strip(),
+            min_score=_optional_float(row.get("min_score")),
+            min_rank=_optional_int(row.get("min_rank")),
+            avg_score=_optional_float(row.get("avg_score")),
+            max_score=_optional_float(row.get("max_score")),
+            plan_count=_optional_int(row.get("plan_count")),
+            raw_data=row,
+        )
+        db.add(admission)
+
+
+def _get_school_by_code(db: Session, school_code: Any) -> School:
+    code = str(school_code).strip()
+    school = db.scalar(select(School).where(School.code == code))
+    if school is None:
+        raise ValueError(f"Missing school for school_code={code}")
+    return school
+
+
+def _get_group_by_code(db: Session, school_id: int, year: int, group_code: Any) -> SchoolMajorGroup | None:
+    code = _optional_str(group_code)
+    if not code:
+        return None
+    group = db.scalar(
+        select(SchoolMajorGroup).where(
+            SchoolMajorGroup.year == year,
+            SchoolMajorGroup.school_id == school_id,
+            SchoolMajorGroup.group_code == code,
+        )
+    )
+    if group is None:
+        raise ValueError(f"Missing school_major_group for group_code={code}")
+    return group
+
+
+def _get_major_by_code(db: Session, major_code: Any) -> Major | None:
+    code = _optional_str(major_code)
+    if not code:
+        return None
+    major = db.scalar(select(Major).where(Major.code == code))
+    if major is None:
+        raise ValueError(f"Missing major for major_code={code}")
+    return major
+
+
 def _optional_str(value: Any) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _optional_int(value: Any) -> int | None:
+    text = _optional_str(value)
+    if text is None:
+        return None
+    return int(float(text))
+
+
+def _optional_float(value: Any) -> float | None:
+    text = _optional_str(value)
+    if text is None:
+        return None
+    return float(text)
