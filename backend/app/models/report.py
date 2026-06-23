@@ -1,0 +1,21 @@
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.database import Base
+
+
+class Report(Base):
+    __tablename__ = "reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    plan_id: Mapped[int | None] = mapped_column(ForeignKey("volunteer_plans.id"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    report_type: Mapped[str] = mapped_column(String(64), default="volunteer_plan", index=True)
+    status: Mapped[str] = mapped_column(String(32), default="generated", index=True)
+    data_version: Mapped[str] = mapped_column(String(255))
+    content_json: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

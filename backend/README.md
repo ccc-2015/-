@@ -37,6 +37,9 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 - `GET /api/volunteer/plans/{plan_id}/export`
 - `DELETE /api/volunteer/plans/{plan_id}`
 - `POST /api/volunteer/plans/{plan_id}/check`
+- `GET /api/reports`
+- `POST /api/reports/generate`
+- `GET /api/reports/{report_id}`
 - `GET /api/admin/users`
 - `POST /api/admin/users`
 - `PATCH /api/admin/users/{user_id}`
@@ -75,4 +78,4 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 - `admission_plans`
 - `historical_admissions`
 
-当前知识库已支持文本型文档的创建、查询、发布、归档、删除，以及 `.txt`、`.md`、`.csv`、`.xlsx`、`.xls` 文件上传解析和切片重建。切片会通过 `embedding_service` 生成 `local_hash_v1` 轻量向量，并同步生成清洗质量报告，覆盖文本抽取、元数据、去重、表格结构、政策有效期和切片就绪度评分。Agent 政策问答使用向量相似度、关键词命中、标题和标签的混合排序。志愿方案已支持按用户和批次保存多个版本、读取、更新、复制、删除、快照导出和规则校验。后续建议按规划书继续补齐真实 embedding/pgvector 检索、报告生成和管理端运营闭环。
+当前知识库已支持文本型文档的创建、查询、发布、归档、删除，以及 `.txt`、`.md`、`.csv`、`.xlsx`、`.xls` 文件上传解析和切片重建。切片会通过 `embedding_service` 生成 `local_hash_v1` 轻量向量，并同步生成清洗质量报告，覆盖文本抽取、元数据、去重、表格结构、政策有效期和切片就绪度评分。Agent 政策问答使用向量相似度、关键词命中、标题和标签的混合排序。志愿方案已支持按用户和批次保存多个版本、读取、更新、复制、删除、快照导出和规则校验。报告已支持从已保存志愿方案生成网页快照。后续建议按规划书继续补齐真实 embedding/pgvector 检索、PDF/表格导出和管理端运营闭环。

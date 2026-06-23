@@ -18,10 +18,12 @@ import type {
   PolicyCheckItem,
   PolicyCheckResponse,
   RankLookupResponse,
+  ReportGenerateRequest,
   RecommendationGenerateResponse,
   ScoreSegment,
   SearchGroupsResponse,
   StudentProfile,
+  UserReport,
   VolunteerPlan,
   VolunteerPlanCheckResponse,
   VolunteerPlanExportResponse,
@@ -557,6 +559,22 @@ export async function exportVolunteerPlan({ token, planId }: { token: string; pl
   return request<VolunteerPlanExportResponse>(`/api/volunteer/plans/${planId}/export`, {
     token
   });
+}
+
+export async function listReports(token: string) {
+  return request<UserReport[]>("/api/reports", { token });
+}
+
+export async function generateReport({ token, payload }: { token: string; payload: ReportGenerateRequest }) {
+  return request<UserReport>("/api/reports/generate", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function getReport({ token, reportId }: { token: string; reportId: number }) {
+  return request<UserReport>(`/api/reports/${reportId}`, { token });
 }
 
 export async function searchAdmissionGroups({

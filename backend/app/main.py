@@ -13,6 +13,7 @@ from app.api.routes import (
     policy,
     profile,
     recommendations,
+    reports,
     score,
     volunteer,
 )
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(admission.router, prefix="/api/admission", tags=["admission"])
     app.include_router(recommendations.router, prefix="/api/recommendations", tags=["recommendations"])
     app.include_router(volunteer.router, prefix="/api/volunteer", tags=["volunteer"])
+    app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
     app.include_router(admin_data.router, prefix="/api/admin/data", tags=["admin-data"])
     app.include_router(admin_knowledge.router, prefix="/api/admin", tags=["admin-knowledge"])
     app.include_router(admin_schools.router, prefix="/api/admin", tags=["admin-schools"])

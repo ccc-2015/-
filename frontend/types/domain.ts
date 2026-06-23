@@ -496,6 +496,80 @@ export interface VolunteerPlanExportResponse {
   items: VolunteerPlanExportItem[];
 }
 
+export interface ReportProfileSnapshot {
+  name?: string | null;
+  year?: number | null;
+  province?: string | null;
+  score?: number | null;
+  rank?: number | null;
+  subject_track?: string | null;
+  selected_subjects: string[];
+  target_batches: string[];
+  city_preferences: string[];
+  major_preferences: string[];
+  accepts_adjustment?: boolean | null;
+}
+
+export interface ReportPlanSnapshot {
+  id: number;
+  title: string;
+  batch: string;
+  version: number;
+  item_count: number;
+  updated_at: string;
+}
+
+export interface ReportSummary {
+  risk_distribution: Record<string, number>;
+  top_cities: string[];
+  top_majors: string[];
+  adjustment_count: number;
+  warning_count: number;
+}
+
+export interface ReportVolunteerItem {
+  order: number;
+  group_id: number;
+  school_name?: string | null;
+  group_name?: string | null;
+  group_code?: string | null;
+  subject_track?: string | null;
+  city?: string | null;
+  risk_level?: string | null;
+  match_score?: number | null;
+  suggested_adjustment?: boolean | null;
+  majors: string[];
+  reasons: string[];
+  warnings: string[];
+}
+
+export interface ReportContent {
+  profile: ReportProfileSnapshot;
+  plan: ReportPlanSnapshot;
+  summary: ReportSummary;
+  volunteer_items: ReportVolunteerItem[];
+  policy_citations: string[];
+  disclaimers: string[];
+}
+
+export interface UserReport {
+  id: number;
+  user_id: number;
+  plan_id?: number | null;
+  title: string;
+  report_type: string;
+  status: string;
+  data_version: string;
+  content_json: ReportContent;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReportGenerateRequest {
+  plan_id: number;
+  title?: string | null;
+}
+
 export interface RankLookupResponse {
   year: number;
   subject_track: string;
