@@ -1,7 +1,7 @@
+import csv
 from collections import Counter
 from datetime import datetime
 from io import StringIO
-import csv
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -10,6 +10,7 @@ from app.models.profile import StudentProfile
 from app.models.report import Report
 from app.models.user import User
 from app.models.volunteer import VolunteerPlan
+from app.modules.rag_agent.tools import search_published_knowledge
 from app.schemas.report import (
     ReportContent,
     ReportOut,
@@ -17,6 +18,7 @@ from app.schemas.report import (
     ReportProfileSnapshot,
     ReportSummary,
     ReportVolunteerItem,
+    ReportPolicyCitation,
 )
 
 
@@ -40,14 +42,14 @@ def generate_report_from_plan(db: Session, user: User, plan_id: int, title: str 
         return None
 
     profile = db.scalar(select(StudentProfile).where(StudentProfile.user_id == user.id))
-    content = build_report_content(profile, plan)
+    content = build_report_content(db, profile, plan)
     report = Report(
         user_id=user.id,
         plan_id=plan.id,
         title=title or f"{plan.batch}志愿分析报告 V{plan.version}",
         report_type="volunteer_plan",
         status="generated",
-        data_version=build_data_version(plan),
+        data_version=build_data_version(plan, content.policy_citations),
         content_json=content.model_dump(mode="json"),
     )
     db.add(report)
@@ -56,7 +58,7 @@ def generate_report_from_plan(db: Session, user: User, plan_id: int, title: str 
     return report
 
 
-def build_report_content(profile: StudentProfile | None, plan: VolunteerPlan) -> ReportContent:
+def build_report_content(db: Session, profile: StudentProfile | None, plan: VolunteerPlan) -> ReportContent:
     items = [_build_volunteer_item(item) for item in sorted(plan.items, key=lambda value: value.order)]
     risk_counter = Counter(item.risk_level or "待评估" for item in items)
     cities = [item.city for item in items if item.city]
@@ -81,11 +83,7 @@ def build_report_content(profile: StudentProfile | None, plan: VolunteerPlan) ->
             warning_count=warning_count,
         ),
         volunteer_items=items,
-        policy_citations=[
-            "普通本科批和普通高职（专科）批均按 48 个院校专业组志愿控制。",
-            "平行志愿投档原则按“分数优先、遵循志愿、一轮投档”解释。",
-            "专业组可报性以批次、首选科目和再选科目要求校验结果为准。",
-        ],
+        policy_citations=_build_policy_citations(db, plan),
         disclaimers=[
             "本报告为报考辅助决策材料，不替代考生本人最终填报决定。",
             "推荐结果不承诺录取，最终以河南省教育考试院和高校正式公布信息为准。",
@@ -94,15 +92,25 @@ def build_report_content(profile: StudentProfile | None, plan: VolunteerPlan) ->
     )
 
 
-def build_data_version(plan: VolunteerPlan) -> str:
+def build_data_version(plan: VolunteerPlan, citations: list[ReportPolicyCitation] | None = None) -> str:
     metadata = plan.metadata_json or {}
     explicit_version = metadata.get("data_version")
     if isinstance(explicit_version, str) and explicit_version.strip():
-        return explicit_version.strip()
-    return f"plan:{plan.id}:v{plan.version}:updated:{plan.updated_at.isoformat()}"
+        base = explicit_version.strip()
+    else:
+        base = f"plan:{plan.id}:v{plan.version}:updated:{plan.updated_at.isoformat()}"
+    knowledge_refs = [
+        f"doc:{citation.document_id}:v{citation.version or '-'}:chunk:{citation.chunk_id or '-'}"
+        for citation in citations or []
+        if not citation.fallback and citation.document_id
+    ]
+    if not knowledge_refs:
+        return base
+    return f"{base}|kb:{','.join(knowledge_refs)}"
 
 
 def report_to_out(report: Report) -> ReportOut:
+    content = _parse_report_content(report.content_json)
     return ReportOut(
         id=report.id,
         user_id=report.user_id,
@@ -111,14 +119,14 @@ def report_to_out(report: Report) -> ReportOut:
         report_type=report.report_type,
         status=report.status,
         data_version=report.data_version,
-        content_json=ReportContent.model_validate(report.content_json),
+        content_json=content,
         created_at=report.created_at,
         updated_at=report.updated_at,
     )
 
 
 def build_report_csv(report: Report) -> str:
-    content = ReportContent.model_validate(report.content_json)
+    content = _parse_report_content(report.content_json)
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(["报告标题", report.title])
@@ -172,13 +180,72 @@ def build_report_csv(report: Report) -> str:
         )
     writer.writerow([])
     writer.writerow(["政策依据"])
+    writer.writerow(["标题", "摘录", "来源 URL", "文档 ID", "切片 ID", "版本"])
     for citation in content.policy_citations:
-        writer.writerow([citation])
+        writer.writerow([citation.title, citation.excerpt, citation.source_url or "", citation.document_id or "", citation.chunk_id or "", citation.version or ""])
     writer.writerow([])
     writer.writerow(["免责声明"])
     for disclaimer in content.disclaimers:
         writer.writerow([disclaimer])
     return "\ufeff" + output.getvalue()
+
+
+def _parse_report_content(value: dict) -> ReportContent:
+    normalized = dict(value or {})
+    citations = normalized.get("policy_citations") or []
+    if citations and all(isinstance(item, str) for item in citations):
+        normalized["policy_citations"] = [
+            {
+                "title": "内置规则说明",
+                "excerpt": item,
+                "fallback": True,
+            }
+            for item in citations
+        ]
+    return ReportContent.model_validate(normalized)
+
+
+def _build_policy_citations(db: Session, plan: VolunteerPlan) -> list[ReportPolicyCitation]:
+    query = f"{plan.batch} 平行志愿 投档 调剂 专业组 选科 规则"
+    try:
+        results = search_published_knowledge(db, query=query, limit=3)
+    except ValueError:
+        results = {"items": []}
+    citations = [_knowledge_item_to_citation(item) for item in results.get("items", []) if isinstance(item, dict)]
+    if citations:
+        return citations
+    return [
+        ReportPolicyCitation(
+            title="内置规则说明",
+            excerpt="普通本科批和普通高职（专科）批均按 48 个院校专业组志愿控制。",
+            fallback=True,
+        ),
+        ReportPolicyCitation(
+            title="内置规则说明",
+            excerpt="平行志愿投档原则按“分数优先、遵循志愿、一轮投档”解释。",
+            fallback=True,
+        ),
+        ReportPolicyCitation(
+            title="内置规则说明",
+            excerpt="专业组可报性以批次、首选科目和再选科目要求校验结果为准。",
+            fallback=True,
+        ),
+    ]
+
+
+def _knowledge_item_to_citation(item: dict) -> ReportPolicyCitation:
+    score_detail = item.get("score_detail") if isinstance(item.get("score_detail"), dict) else {}
+    return ReportPolicyCitation(
+        title=str(item.get("title") or "知识库引用"),
+        excerpt=str(item.get("excerpt") or ""),
+        source_url=item.get("source_url") if isinstance(item.get("source_url"), str) else None,
+        document_id=item.get("id") if isinstance(item.get("id"), int) else None,
+        chunk_id=item.get("chunk_id") if isinstance(item.get("chunk_id"), int) else None,
+        version=item.get("version") if isinstance(item.get("version"), int) else None,
+        retrieval=score_detail.get("retrieval") if isinstance(score_detail.get("retrieval"), str) else None,
+        score=float(item["score"]) if isinstance(item.get("score"), (float, int)) else None,
+        fallback=False,
+    )
 
 
 def _build_profile_snapshot(profile: StudentProfile | None) -> ReportProfileSnapshot:

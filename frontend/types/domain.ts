@@ -543,12 +543,24 @@ export interface ReportVolunteerItem {
   warnings: string[];
 }
 
+export interface ReportPolicyCitation {
+  title: string;
+  excerpt: string;
+  source_url?: string | null;
+  document_id?: number | null;
+  chunk_id?: number | null;
+  version?: number | null;
+  retrieval?: string | null;
+  score?: number | null;
+  fallback: boolean;
+}
+
 export interface ReportContent {
   profile: ReportProfileSnapshot;
   plan: ReportPlanSnapshot;
   summary: ReportSummary;
   volunteer_items: ReportVolunteerItem[];
-  policy_citations: string[];
+  policy_citations: ReportPolicyCitation[];
   disclaimers: string[];
 }
 

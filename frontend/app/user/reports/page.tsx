@@ -291,11 +291,29 @@ function ReportPreview({ report, onExport, isExporting }: { report: UserReport; 
 
         <section className="rounded-md border border-border p-4">
           <div className="font-medium">政策依据</div>
-          <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-            {content.policy_citations.map((item) => (
-              <li key={item}>{item}</li>
+          <div className="mt-3 space-y-3">
+            {content.policy_citations.map((item, index) => (
+              <div key={`${item.document_id ?? "fallback"}-${item.chunk_id ?? index}`} className="rounded-md border border-border p-3 text-sm">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="font-medium">{item.title}</div>
+                  <Badge variant={item.fallback ? "muted" : "outline"}>
+                    {item.fallback ? "内置说明" : `文档 ${item.document_id ?? "-"} · 切片 ${item.chunk_id ?? "-"}`}
+                  </Badge>
+                </div>
+                <div className="mt-2 text-muted-foreground">{item.excerpt}</div>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  {item.version ? <span>版本 V{item.version}</span> : null}
+                  {item.retrieval ? <span>检索：{item.retrieval}</span> : null}
+                  {typeof item.score === "number" ? <span>分数：{item.score.toFixed(4)}</span> : null}
+                  {item.source_url ? (
+                    <a className="text-primary hover:underline" href={item.source_url} target="_blank" rel="noreferrer">
+                      来源链接
+                    </a>
+                  ) : null}
+                </div>
+              </div>
             ))}
-          </ul>
+          </div>
         </section>
 
         <section className="rounded-md bg-amber-50 p-4 text-sm text-amber-800">

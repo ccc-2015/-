@@ -55,12 +55,24 @@ class ReportVolunteerItem(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class ReportPolicyCitation(BaseModel):
+    title: str
+    excerpt: str
+    source_url: str | None = None
+    document_id: int | None = None
+    chunk_id: int | None = None
+    version: int | None = None
+    retrieval: str | None = None
+    score: float | None = None
+    fallback: bool = False
+
+
 class ReportContent(BaseModel):
     profile: ReportProfileSnapshot
     plan: ReportPlanSnapshot
     summary: ReportSummary
     volunteer_items: list[ReportVolunteerItem] = Field(default_factory=list)
-    policy_citations: list[str] = Field(default_factory=list)
+    policy_citations: list[ReportPolicyCitation] = Field(default_factory=list)
     disclaimers: list[str] = Field(default_factory=list)
 
 
