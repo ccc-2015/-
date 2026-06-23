@@ -1,7 +1,10 @@
 import type {
   AdminMajor,
+  AdminAgentOps,
   AdminAgentConversationDetail,
   AdminAgentConversationSummary,
+  AdminAuditLog,
+  AdminDashboard,
   AdminKnowledgeDocument,
   AdminKnowledgeStatus,
   AdminSchool,
@@ -273,6 +276,23 @@ export async function listAdminAgentConversations(token: string, limit = 50) {
 
 export async function getAdminAgentConversation({ token, conversationId }: { token: string; conversationId: number }) {
   return request<AdminAgentConversationDetail>(`/api/admin/agent/conversations/${conversationId}`, { token });
+}
+
+export async function getAdminDashboard(token: string) {
+  return request<AdminDashboard>("/api/admin/dashboard", { token });
+}
+
+export async function getAdminAgentOps(token: string) {
+  return request<AdminAgentOps>("/api/admin/agent/ops", { token });
+}
+
+export async function listAdminAuditLogs(token: string, limit = 100) {
+  return request<AdminAuditLog[]>(
+    withQuery("/api/admin/audit-logs", {
+      limit: String(limit)
+    }),
+    { token }
+  );
 }
 
 function withQuery(path: string, params: Record<string, string | undefined>) {

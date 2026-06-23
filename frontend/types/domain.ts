@@ -244,6 +244,57 @@ export interface AdminMetric {
   helper: string;
 }
 
+export interface AdminKnowledgeStatusItem {
+  id: number;
+  title: string;
+  category?: string | null;
+  source_type?: string | null;
+  status: string;
+  version: number;
+  chunk_count: number;
+  updated_at: string;
+}
+
+export interface AdminDashboard {
+  metrics: AdminMetric[];
+  knowledge_documents: AdminKnowledgeStatusItem[];
+}
+
+export interface AdminAgentOpsMetric {
+  label: string;
+  value: string;
+  helper: string;
+}
+
+export interface AdminAgentNodeMetric {
+  name: string;
+  run_count: number;
+  success_count: number;
+  failure_count: number;
+  last_run_at?: string | null;
+}
+
+export interface AdminAgentToolMetric {
+  name: string;
+  call_count: number;
+  last_called_at?: string | null;
+}
+
+export interface AdminAgentOps {
+  metrics: AdminAgentOpsMetric[];
+  nodes: AdminAgentNodeMetric[];
+  tools: AdminAgentToolMetric[];
+}
+
+export interface AdminAuditLog {
+  id: string;
+  time: string;
+  actor: string;
+  action: string;
+  target: string;
+  detail?: string | null;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
