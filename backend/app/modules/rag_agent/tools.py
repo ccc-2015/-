@@ -5,6 +5,7 @@ from app.models.admission import AdmissionPlan, HistoricalAdmission, School, Sch
 from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
 from app.models.profile import StudentProfile
 from app.models.user import User
+from app.services.knowledge_service import build_local_embedding, cosine_similarity, tokenize_for_retrieval
 from app.services.recommendation_service import generate_recommendations
 
 
@@ -100,7 +101,46 @@ def generate_user_recommendations(db: Session, user_id: int, limit: int = 5) -> 
 
 def search_published_knowledge(db: Session, query: str, limit: int = 5) -> dict:
     keywords = _extract_keywords(query)
-    stmt = (
+    query_embedding = build_local_embedding(query)
+    query_tokens = set(tokenize_for_retrieval(query))
+    rows = list(
+        db.execute(
+            select(KnowledgeChunk, KnowledgeDocument)
+            .join(KnowledgeDocument, KnowledgeDocument.id == KnowledgeChunk.document_id)
+            .where(KnowledgeDocument.status == "published")
+            .order_by(KnowledgeDocument.updated_at.desc(), KnowledgeChunk.chunk_index)
+            .limit(500)
+        ).all()
+    )
+
+    scored = []
+    for chunk, document in rows:
+        score_detail = _knowledge_score(query_tokens, query_embedding, keywords, chunk, document)
+        if score_detail["score"] > 0:
+            scored.append((score_detail, chunk, document))
+
+    if scored:
+        scored.sort(key=lambda item: (-item[0]["score"], -item[2].updated_at.timestamp(), item[1].chunk_index))
+        items = [
+            {
+                "id": document.id,
+                "chunk_id": chunk.id,
+                "chunk_index": chunk.chunk_index,
+                "title": document.title,
+                "category": document.category,
+                "source_type": document.source_type,
+                "source_url": document.source_url,
+                "version": document.version,
+                "excerpt": chunk.content[:240],
+                "tags": document.tags or [],
+                "score": round(score_detail["score"], 4),
+                "score_detail": score_detail,
+            }
+            for score_detail, chunk, document in scored[:limit]
+        ]
+        return {"count": len(items), "items": items, "retrieval": "hybrid_local_hash_v1"}
+
+    fallback_stmt = (
         select(KnowledgeChunk, KnowledgeDocument)
         .join(KnowledgeDocument, KnowledgeDocument.id == KnowledgeChunk.document_id)
         .where(KnowledgeDocument.status == "published")
@@ -110,9 +150,9 @@ def search_published_knowledge(db: Session, query: str, limit: int = 5) -> dict:
         for keyword in keywords[:6]:
             like = f"%{keyword}%"
             conditions.extend([KnowledgeDocument.title.like(like), KnowledgeChunk.content.like(like)])
-        stmt = stmt.where(or_(*conditions))
+        fallback_stmt = fallback_stmt.where(or_(*conditions))
 
-    rows = list(db.execute(stmt.order_by(KnowledgeDocument.updated_at.desc(), KnowledgeChunk.chunk_index).limit(limit)).all())
+    rows = list(db.execute(fallback_stmt.order_by(KnowledgeDocument.updated_at.desc(), KnowledgeChunk.chunk_index).limit(limit)).all())
     if rows:
         items = [
             {
@@ -126,14 +166,17 @@ def search_published_knowledge(db: Session, query: str, limit: int = 5) -> dict:
                 "version": document.version,
                 "excerpt": chunk.content[:240],
                 "tags": document.tags or [],
+                "score": None,
+                "score_detail": {"score": 0, "retrieval": "keyword_fallback"},
             }
             for chunk, document in rows
         ]
-        return {"count": len(items), "items": items}
+        return {"count": len(items), "items": items, "retrieval": "keyword_fallback"}
 
     documents = list(db.scalars(select(KnowledgeDocument).where(KnowledgeDocument.status == "published").order_by(KnowledgeDocument.updated_at.desc()).limit(limit)).all())
     return {
         "count": len(documents),
+        "retrieval": "document_fallback",
         "items": [
             {
                 "id": document.id,
@@ -146,6 +189,8 @@ def search_published_knowledge(db: Session, query: str, limit: int = 5) -> dict:
                 "version": document.version,
                 "excerpt": document.content[:240],
                 "tags": document.tags or [],
+                "score": None,
+                "score_detail": {"score": 0, "retrieval": "document_fallback"},
             }
             for document in documents
         ],
@@ -175,3 +220,36 @@ def _extract_keywords(query: str) -> list[str]:
         if keyword and keyword not in deduped:
             deduped.append(keyword)
     return deduped
+
+
+def _knowledge_score(
+    query_tokens: set[str],
+    query_embedding: list[float],
+    keywords: list[str],
+    chunk: KnowledgeChunk,
+    document: KnowledgeDocument,
+) -> dict:
+    metadata = chunk.metadata_json or {}
+    chunk_embedding = metadata.get("embedding")
+    vector_score = cosine_similarity(query_embedding, chunk_embedding if isinstance(chunk_embedding, list) else None)
+    chunk_text = chunk.content.lower()
+    title_text = document.title.lower()
+    tag_text = " ".join(document.tags or []).lower()
+    keyword_hits = sum(1 for keyword in keywords if keyword.lower() in chunk_text)
+    title_hits = sum(1 for keyword in keywords if keyword.lower() in title_text)
+    tag_hits = sum(1 for keyword in keywords if keyword.lower() in tag_text)
+    chunk_tokens = set(tokenize_for_retrieval(chunk.content))
+    token_overlap = len(query_tokens.intersection(chunk_tokens)) / max(len(query_tokens), 1)
+    keyword_score = min(keyword_hits / max(len(keywords), 1), 1.0)
+    title_score = min(title_hits / max(len(keywords), 1), 1.0)
+    tag_score = min(tag_hits / max(len(keywords), 1), 1.0)
+    score = max(vector_score, 0) * 0.45 + token_overlap * 0.25 + keyword_score * 0.2 + title_score * 0.07 + tag_score * 0.03
+    return {
+        "score": score,
+        "vector_score": round(vector_score, 4),
+        "token_overlap": round(token_overlap, 4),
+        "keyword_score": round(keyword_score, 4),
+        "title_score": round(title_score, 4),
+        "tag_score": round(tag_score, 4),
+        "retrieval": "hybrid_local_hash_v1",
+    }

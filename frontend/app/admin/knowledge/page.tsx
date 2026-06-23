@@ -88,6 +88,16 @@ function normalizePayload(form: KnowledgeDocumentPayload): KnowledgeDocumentPayl
   };
 }
 
+function chunkEmbeddingProvider(chunk: KnowledgeChunk) {
+  const provider = chunk.metadata_json?.embedding_provider;
+  return typeof provider === "string" ? provider : chunk.embedding_id ? "unknown" : "未生成";
+}
+
+function chunkEmbeddingDimensions(chunk: KnowledgeChunk) {
+  const dimensions = chunk.metadata_json?.embedding_dimensions;
+  return typeof dimensions === "number" ? dimensions : null;
+}
+
 export default function KnowledgePage() {
   const [documents, setDocuments] = useState<AdminKnowledgeDocument[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<AdminKnowledgeDocument | null>(null);
@@ -585,7 +595,12 @@ export default function KnowledgePage() {
                 <div className="mt-3 max-h-80 space-y-2 overflow-auto">
                   {chunks.slice(0, 10).map((chunk) => (
                     <div key={chunk.id} className="rounded border border-border bg-background p-3">
-                      <div className="mb-1 text-xs text-muted-foreground">#{chunk.chunk_index + 1}</div>
+                      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>#{chunk.chunk_index + 1}</span>
+                        <Badge variant={chunk.embedding_id ? "success" : "warning"}>{chunk.embedding_id ? "已向量化" : "未向量化"}</Badge>
+                        <span>{chunkEmbeddingProvider(chunk)}</span>
+                        {chunkEmbeddingDimensions(chunk) ? <span>{chunkEmbeddingDimensions(chunk)} 维</span> : null}
+                      </div>
                       <div className="max-h-20 overflow-hidden text-xs text-muted-foreground">{chunk.content}</div>
                     </div>
                   ))}

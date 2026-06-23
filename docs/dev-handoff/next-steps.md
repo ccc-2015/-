@@ -2,21 +2,21 @@
 
 ## 优先级 1：知识库检索质量
 
-目标：把当前关键词检索升级为可解释、可排序的检索链路。
+目标：把当前本地 `local_hash_v1` 混合检索升级为更接近生产的可解释检索链路。
 
 建议步骤：
 
 1. 增加知识库切片质量字段或质量报告表。
 2. 增加重复文档、空内容、低质量切片检查。
-3. 接入 embedding 生成。
-4. 选择向量存储方案：开发期可先 SQLite + 简单向量字段或 Chroma，最终建议 PostgreSQL + pgvector。
-5. `search_published_knowledge` 改为向量相似度 + 关键词混合检索。
-6. Agent 引用展示 chunk、document、version、source_url。
+3. 评估真实 embedding 模型和成本。
+4. 选择向量存储方案：开发期可保留 SQLite metadata，最终建议 PostgreSQL + pgvector。
+5. 将 `local_hash_v1` 替换为真实 embedding，并保留关键词混合召回。
+6. Agent 引用展示 chunk、document、version、source_url、score、score_detail。
 
 验收点：
 
 - 上传一份政策文档后，Agent 能命中具体切片。
-- 引用中包含 `document_id`、`chunk_id`、`version`。
+- 引用中包含 `document_id`、`chunk_id`、`version`、`score_detail`。
 - 不发布的文档不会被 Agent 检索。
 
 ## 优先级 2：志愿方案持久化

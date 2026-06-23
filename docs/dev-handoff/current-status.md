@@ -15,12 +15,13 @@
 - 志愿方案草案：用户端 `/user/plan` 使用真实推荐候选，并用真实 `group_id` 做二次规则校验。
 - 知识库管理：支持文档 CRUD、发布、归档、删除。
 - 知识库上传和切片：支持 `.txt`、`.md`、`.csv`、`.xlsx`、`.xls` 上传解析，自动生成 `knowledge_chunks`，支持手动重建切片和前端预览。
-- Agent MVP：LangGraph 骨架已接入推荐引擎和 published 知识库切片检索，返回工具调用和引用来源。
+- 本地轻量向量：切片会生成 `local_hash_v1` hash embedding，metadata 中记录 provider、维度和向量。
+- Agent MVP：LangGraph 骨架已接入推荐引擎和 published 知识库切片混合检索，返回工具调用、引用来源和检索分数。
 
 ## 仍未完成
 
 - 知识库清洗质量报告：还没有 OCR 置信度、表格错位、重复文档、过期文档检测。
-- 向量化检索：当前政策问答仍是关键词 `LIKE` 检索切片，不是 embedding 相似度检索。
+- 生产级向量检索：当前是本地 hash embedding 混合检索，不是外部 embedding 模型或 pgvector。
 - 志愿方案保存：目前 `/user/plan` 是推荐候选草案，未持久化用户自定义排序。
 - 报告生成：`/user/reports` 仍是静态展示，PDF/网页报告/表格导出未实现。
 - 管理端运营：对话日志、Agent 运营、审计日志、用户管理部分页面仍未完全接真实接口。

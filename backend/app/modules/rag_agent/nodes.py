@@ -61,6 +61,8 @@ def make_tool_node(db: Session):
                         "chunk_index": item.get("chunk_index"),
                         "version": item["version"],
                         "category": item.get("category"),
+                        "score": item.get("score"),
+                        "score_detail": item.get("score_detail"),
                     },
                 }
                 for item in knowledge.get("items", [])
