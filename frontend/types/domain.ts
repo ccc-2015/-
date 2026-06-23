@@ -443,6 +443,7 @@ export interface VolunteerPlan {
   user_id: number;
   title: string;
   batch: string;
+  version: number;
   status: string;
   source: string;
   metadata_json?: Record<string, unknown> | null;
@@ -462,6 +463,37 @@ export interface VolunteerPlanSaveRequest {
 export interface VolunteerPlanCheckResponse {
   plan: VolunteerPlan;
   policy_result: PolicyCheckResponse;
+}
+
+export interface VolunteerPlanExportItem {
+  order: number;
+  group_id: number;
+  school_code?: string | null;
+  school_name?: string | null;
+  group_code?: string | null;
+  group_name?: string | null;
+  subject_track?: string | null;
+  city?: string | null;
+  risk_level?: string | null;
+  match_score?: number | null;
+  suggested_adjustment?: boolean | null;
+  majors: string[];
+  reasons: string[];
+  warnings: string[];
+  plan_count?: number | null;
+  historical_min_rank?: number | null;
+  notes?: string | null;
+}
+
+export interface VolunteerPlanExportResponse {
+  plan_id: number;
+  title: string;
+  batch: string;
+  version: number;
+  status: string;
+  exported_at: string;
+  item_count: number;
+  items: VolunteerPlanExportItem[];
 }
 
 export interface RankLookupResponse {

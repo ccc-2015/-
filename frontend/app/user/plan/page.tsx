@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, GripVertical, RefreshCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Download, GripVertical, RefreshCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   checkPolicy,
   checkVolunteerPlan,
+  copyVolunteerPlan,
   deleteVolunteerPlan,
+  exportVolunteerPlan,
   generateRecommendations,
-  getCurrentVolunteerPlan,
-  saveCurrentVolunteerPlan
+  listVolunteerPlans,
+  saveCurrentVolunteerPlan,
+  updateVolunteerPlan
 } from "@/lib/api";
 import { getStoredSession } from "@/lib/auth-store";
 import { formatNumber } from "@/lib/utils";
@@ -30,6 +33,7 @@ export default function PlanPage() {
   const [items, setItems] = useState<GeneratedRecommendationItem[]>([]);
   const [batch, setBatch] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [savedPlans, setSavedPlans] = useState<VolunteerPlan[]>([]);
   const [savedPlan, setSavedPlan] = useState<VolunteerPlan | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [policyResult, setPolicyResult] = useState<PolicyCheckResponse | null>(null);
@@ -37,6 +41,8 @@ export default function PlanPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   function restoreItemsFromPlan(plan: VolunteerPlan) {
     return plan.items
@@ -44,6 +50,41 @@ export default function PlanPage() {
       .sort((left, right) => left.order - right.order)
       .map((item) => item.snapshot_json as GeneratedRecommendationItem | null)
       .filter((item): item is GeneratedRecommendationItem => Boolean(item));
+  }
+
+  function buildPlanPayload(title: string) {
+    if (!batch) {
+      throw new Error("当前推荐结果没有批次信息。");
+    }
+    return {
+      title,
+      batch,
+      source: "recommendation",
+      metadata: { item_count: items.length, versioned: true },
+      items: items.map((item, index) => ({
+        group_id: item.group_id,
+        order: index + 1,
+        risk_level: item.risk_level,
+        match_score: item.match_score,
+        snapshot: item
+      }))
+    };
+  }
+
+  async function refreshSavedPlans(token: string, nextBatch?: string | null) {
+    const plans = await listVolunteerPlans({ token, batch: nextBatch ?? batch ?? undefined });
+    setSavedPlans(plans);
+    return plans;
+  }
+
+  function selectPlan(plan: VolunteerPlan) {
+    const restoredItems = restoreItemsFromPlan(plan);
+    setSavedPlan(plan);
+    setBatch(plan.batch);
+    setItems(restoredItems);
+    setWarnings(restoredItems.length ? [] : ["已找到保存的方案，但缺少推荐快照，请刷新候选后重新保存。"]);
+    setHasUnsavedChanges(false);
+    setPolicyResult(null);
   }
 
   async function loadPlanCandidates() {
@@ -57,15 +98,10 @@ export default function PlanPage() {
     setIsLoading(true);
     setError("");
     try {
-      const existingPlan = await getCurrentVolunteerPlan(session.token);
+      const plans = await refreshSavedPlans(session.token);
+      const existingPlan = plans[0] ?? null;
       if (existingPlan) {
-        const restoredItems = restoreItemsFromPlan(existingPlan);
-        setSavedPlan(existingPlan);
-        setHasUnsavedChanges(false);
-        setBatch(existingPlan.batch);
-        setItems(restoredItems);
-        setWarnings(restoredItems.length ? [] : ["已找到保存的方案，但缺少推荐快照，请刷新候选后重新保存。"]);
-        setPolicyResult(null);
+        selectPlan(existingPlan);
         return;
       }
       const result = await generateRecommendations({
@@ -104,6 +140,7 @@ export default function PlanPage() {
       setItems(result.items);
       setBatch(result.batch ?? null);
       setWarnings(result.warnings);
+      await refreshSavedPlans(session.token, result.batch ?? null);
       if (savedPlan && result.batch === savedPlan.batch) {
         setHasUnsavedChanges(true);
       } else {
@@ -132,29 +169,98 @@ export default function PlanPage() {
     setIsSaving(true);
     setError("");
     try {
-      const plan = await saveCurrentVolunteerPlan({
-        token: session.token,
-        payload: {
-          title: `${batch}志愿方案`,
-          batch,
-          source: "recommendation",
-          metadata: { item_count: items.length },
-          items: items.map((item, index) => ({
-            group_id: item.group_id,
-            order: index + 1,
-            risk_level: item.risk_level,
-            match_score: item.match_score,
-            snapshot: item
-          }))
-        }
-      });
+      const payload = buildPlanPayload(savedPlan ? savedPlan.title : `${batch}志愿方案`);
+      const plan = savedPlan
+        ? await updateVolunteerPlan({ token: session.token, planId: savedPlan.id, payload })
+        : await saveCurrentVolunteerPlan({
+            token: session.token,
+            payload
+          });
       setSavedPlan(plan);
+      await refreshSavedPlans(session.token, plan.batch);
       setHasUnsavedChanges(false);
       setPolicyResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "方案保存失败");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleSaveAsNewVersion() {
+    const session = getStoredSession();
+    if (!session) {
+      setError("登录状态已失效，请重新登录。");
+      return;
+    }
+    if (!batch || !items.length) {
+      setError("当前没有可另存的方案。");
+      return;
+    }
+
+    setIsSaving(true);
+    setError("");
+    try {
+      const versionHint = savedPlans.filter((plan) => plan.batch === batch).length + 1;
+      const plan = await saveCurrentVolunteerPlan({
+        token: session.token,
+        payload: buildPlanPayload(`${batch}志愿方案 V${versionHint}`)
+      });
+      setSavedPlan(plan);
+      await refreshSavedPlans(session.token, plan.batch);
+      setHasUnsavedChanges(false);
+      setPolicyResult(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "方案另存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleCopyPlan(plan: VolunteerPlan) {
+    const session = getStoredSession();
+    if (!session) {
+      setError("登录状态已失效，请重新登录。");
+      return;
+    }
+
+    setIsCopying(true);
+    setError("");
+    try {
+      const copied = await copyVolunteerPlan({ token: session.token, planId: plan.id });
+      selectPlan(copied);
+      await refreshSavedPlans(session.token, copied.batch);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "方案复制失败");
+    } finally {
+      setIsCopying(false);
+    }
+  }
+
+  async function handleExportPlan() {
+    const session = getStoredSession();
+    if (!session || !savedPlan) {
+      setError("请先保存方案后再导出。");
+      return;
+    }
+
+    setIsExporting(true);
+    setError("");
+    try {
+      const exported = await exportVolunteerPlan({ token: session.token, planId: savedPlan.id });
+      const blob = new Blob([JSON.stringify(exported, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${exported.batch}-志愿方案-V${exported.version}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "方案导出失败");
+    } finally {
+      setIsExporting(false);
     }
   }
 
@@ -172,6 +278,7 @@ export default function PlanPage() {
     try {
       await deleteVolunteerPlan({ token: session.token, planId: savedPlan.id });
       setSavedPlan(null);
+      await refreshSavedPlans(session.token, savedPlan.batch);
       setHasUnsavedChanges(false);
       setPolicyResult(null);
     } catch (err) {
@@ -259,7 +366,11 @@ export default function PlanPage() {
                 </Button>
                 <Button variant="outline" onClick={handleSavePlan} disabled={isSaving || isLoading || items.length === 0}>
                   <Save className="h-4 w-4" />
-                  {isSaving ? "保存中..." : savedPlan ? (hasUnsavedChanges ? "保存调整" : "覆盖保存") : "保存方案"}
+                  {isSaving ? "保存中..." : savedPlan ? "保存调整" : "保存方案"}
+                </Button>
+                <Button variant="outline" onClick={handleSaveAsNewVersion} disabled={isSaving || isLoading || items.length === 0}>
+                  <Copy className="h-4 w-4" />
+                  另存版本
                 </Button>
                 <Button variant="outline" onClick={handlePolicyCheck} disabled={isChecking || isLoading || (!savedPlan && items.length === 0)}>
                   <ShieldCheck className="h-4 w-4" />
@@ -271,7 +382,10 @@ export default function PlanPage() {
                     删除方案
                   </Button>
                 ) : null}
-                <Button disabled>导出方案</Button>
+                <Button variant="outline" onClick={handleExportPlan} disabled={!savedPlan || isExporting || hasUnsavedChanges}>
+                  <Download className="h-4 w-4" />
+                  {isExporting ? "导出中..." : "导出方案"}
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -358,12 +472,47 @@ export default function PlanPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>规则校验</CardTitle>
-            <CardDescription>校验批次、选科、志愿数量和专业组可报性</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>方案版本</CardTitle>
+              <CardDescription>同一批次可保留多个版本，用于复用、对比和导出</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {savedPlans.length === 0 ? (
+                <div className="rounded-md border border-border px-3 py-6 text-center text-muted-foreground">暂无已保存版本</div>
+              ) : (
+                savedPlans.map((plan) => (
+                  <div
+                    key={plan.id}
+                    className={`rounded-md border p-3 ${
+                      savedPlan?.id === plan.id ? "border-primary bg-primary/5" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <button type="button" className="text-left" onClick={() => selectPlan(plan)}>
+                        <div className="font-medium">{plan.title}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {plan.batch} · V{plan.version} · {new Date(plan.updated_at).toLocaleString()}
+                        </div>
+                      </button>
+                      <Button type="button" variant="ghost" size="icon" title="复制版本" aria-label="复制版本" onClick={() => handleCopyPlan(plan)} disabled={isCopying}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground">志愿数：{plan.items.length}</div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>规则校验</CardTitle>
+              <CardDescription>校验批次、选科、志愿数量和专业组可报性</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
             {!policyResult ? (
               <div className="rounded-md border border-border px-3 py-8 text-center text-muted-foreground">点击二次校验后查看规则结果</div>
             ) : (
@@ -432,8 +581,9 @@ export default function PlanPage() {
                 </div>
               </>
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </AppShell>
   );

@@ -6,10 +6,41 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.user import User
 from app.models.volunteer import VolunteerPlan
-from app.schemas.volunteer import VolunteerPlanCheckResponse, VolunteerPlanOut, VolunteerPlanSaveRequest
-from app.services.volunteer_service import check_user_plan, delete_user_plan, get_user_plan, save_user_plan
+from app.schemas.volunteer import (
+    VolunteerPlanCheckResponse,
+    VolunteerPlanCopyRequest,
+    VolunteerPlanExportResponse,
+    VolunteerPlanOut,
+    VolunteerPlanSaveRequest,
+)
+from app.services.volunteer_service import (
+    check_user_plan,
+    copy_user_plan,
+    delete_user_plan,
+    export_user_plan,
+    get_user_plan,
+    list_user_plans,
+    save_user_plan,
+)
 
 router = APIRouter()
+
+
+def _validate_plan_payload(payload: VolunteerPlanSaveRequest) -> None:
+    if not payload.items:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Volunteer plan must contain at least one item")
+    seen_orders = [item.order for item in payload.items]
+    if len(seen_orders) != len(set(seen_orders)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Volunteer plan item orders must be unique")
+
+
+@router.get("/plans", response_model=list[VolunteerPlanOut])
+def list_plans(
+    batch: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[VolunteerPlanOut]:
+    return list_user_plans(db, user, batch)
 
 
 @router.get("/plans/current", response_model=VolunteerPlanOut | None)
@@ -27,11 +58,7 @@ def save_current_plan(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> VolunteerPlanOut:
-    if not payload.items:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Volunteer plan must contain at least one item")
-    seen_orders = [item.order for item in payload.items]
-    if len(seen_orders) != len(set(seen_orders)):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Volunteer plan item orders must be unique")
+    _validate_plan_payload(payload)
     return save_user_plan(
         db=db,
         user=user,
@@ -43,6 +70,45 @@ def save_current_plan(
     )
 
 
+@router.put("/plans/{plan_id}", response_model=VolunteerPlanOut)
+def update_plan(
+    plan_id: int,
+    payload: VolunteerPlanSaveRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> VolunteerPlanOut:
+    _validate_plan_payload(payload)
+    try:
+        plan = save_user_plan(
+            db=db,
+            user=user,
+            batch=payload.batch,
+            items=payload.items,
+            title=payload.title,
+            source=payload.source,
+            metadata=payload.metadata,
+            plan_id=plan_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return plan
+
+
+@router.post("/plans/{plan_id}/copy", response_model=VolunteerPlanOut)
+def copy_plan(
+    plan_id: int,
+    payload: VolunteerPlanCopyRequest | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> VolunteerPlanOut:
+    plan = copy_user_plan(db, user, plan_id, title=payload.title if payload else None)
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Volunteer plan not found")
+    return plan
+
+
 @router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan(
     plan_id: int,
@@ -50,6 +116,18 @@ def delete_plan(
     user: User = Depends(get_current_user),
 ) -> None:
     delete_user_plan(db, user, plan_id)
+
+
+@router.get("/plans/{plan_id}/export", response_model=VolunteerPlanExportResponse)
+def export_plan(
+    plan_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> VolunteerPlanExportResponse:
+    exported = export_user_plan(db, user, plan_id)
+    if exported is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Volunteer plan not found")
+    return exported
 
 
 @router.post("/plans/{plan_id}/check", response_model=VolunteerPlanCheckResponse)

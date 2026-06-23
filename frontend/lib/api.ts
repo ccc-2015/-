@@ -24,6 +24,7 @@ import type {
   StudentProfile,
   VolunteerPlan,
   VolunteerPlanCheckResponse,
+  VolunteerPlanExportResponse,
   VolunteerPlanSaveRequest
 } from "@/types/domain";
 
@@ -489,6 +490,15 @@ export async function getCurrentVolunteerPlan(token: string, batch?: string) {
   );
 }
 
+export async function listVolunteerPlans({ token, batch }: { token: string; batch?: string }) {
+  return request<VolunteerPlan[]>(
+    withQuery("/api/volunteer/plans", {
+      batch
+    }),
+    { token }
+  );
+}
+
 export async function saveCurrentVolunteerPlan({
   token,
   payload
@@ -503,6 +513,32 @@ export async function saveCurrentVolunteerPlan({
   });
 }
 
+export async function updateVolunteerPlan({
+  token,
+  planId,
+  payload
+}: {
+  token: string;
+  planId: number;
+  payload: VolunteerPlanSaveRequest;
+}) {
+  return request<VolunteerPlan>(`/api/volunteer/plans/${planId}`, {
+    method: "PUT",
+    token,
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function copyVolunteerPlan({ token, planId, title }: { token: string; planId: number; title?: string }) {
+  return request<VolunteerPlan>(`/api/volunteer/plans/${planId}/copy`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      title
+    })
+  });
+}
+
 export async function deleteVolunteerPlan({ token, planId }: { token: string; planId: number }) {
   await request<void>(`/api/volunteer/plans/${planId}`, {
     method: "DELETE",
@@ -513,6 +549,12 @@ export async function deleteVolunteerPlan({ token, planId }: { token: string; pl
 export async function checkVolunteerPlan({ token, planId }: { token: string; planId: number }) {
   return request<VolunteerPlanCheckResponse>(`/api/volunteer/plans/${planId}/check`, {
     method: "POST",
+    token
+  });
+}
+
+export async function exportVolunteerPlan({ token, planId }: { token: string; planId: number }) {
+  return request<VolunteerPlanExportResponse>(`/api/volunteer/plans/${planId}/export`, {
     token
   });
 }

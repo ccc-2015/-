@@ -96,6 +96,10 @@ netstat -ano | Select-String ':3000'
 - `POST /api/policy/check`
 - `GET /api/volunteer/plans/current`
 - `PUT /api/volunteer/plans/current`
+- `GET /api/volunteer/plans`
+- `PUT /api/volunteer/plans/{plan_id}`
+- `POST /api/volunteer/plans/{plan_id}/copy`
+- `GET /api/volunteer/plans/{plan_id}/export`
 - `DELETE /api/volunteer/plans/{plan_id}`
 - `POST /api/volunteer/plans/{plan_id}/check`
 - `POST /api/admin/knowledge/documents/upload`

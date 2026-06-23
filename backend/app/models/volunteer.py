@@ -8,12 +8,13 @@ from app.core.database import Base
 
 class VolunteerPlan(Base):
     __tablename__ = "volunteer_plans"
-    __table_args__ = (UniqueConstraint("user_id", "batch", name="uq_volunteer_plan_user_batch"),)
+    __table_args__ = (UniqueConstraint("user_id", "batch", "version", name="uq_volunteer_plan_user_batch_version"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     title: Mapped[str] = mapped_column(String(255))
     batch: Mapped[str] = mapped_column(String(64), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(32), default="draft", index=True)
     source: Mapped[str] = mapped_column(String(64), default="recommendation")
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
