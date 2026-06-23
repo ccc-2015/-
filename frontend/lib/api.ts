@@ -1,4 +1,12 @@
-import type { AgentChatResponse, CurrentUser } from "@/types/domain";
+import type {
+  AdminMajor,
+  AdminSchool,
+  AgentChatResponse,
+  CurrentUser,
+  ImportDataType,
+  ImportJob,
+  ImportUploadResponse
+} from "@/types/domain";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -18,8 +26,9 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
+  const bodyIsFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
 
-  if (!headers.has("Content-Type") && options.body) {
+  if (!headers.has("Content-Type") && options.body && !bodyIsFormData) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -112,5 +121,65 @@ export async function sendAgentMessage({
       conversation_id: conversationId,
       thread_id: threadId
     })
+  });
+}
+
+function withQuery(path: string, params: Record<string, string | undefined>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      search.set(key, value);
+    }
+  }
+
+  const query = search.toString();
+  return query ? `${path}?${query}` : path;
+}
+
+export async function listAdminSchools(token: string, keyword?: string) {
+  return request<AdminSchool[]>(withQuery("/api/admin/universities", { keyword }), { token });
+}
+
+export async function listAdminMajors(token: string, keyword?: string) {
+  return request<AdminMajor[]>(withQuery("/api/admin/majors", { keyword }), { token });
+}
+
+export async function listImportJobs(token: string) {
+  return request<ImportJob[]>("/api/admin/data/import-jobs", { token });
+}
+
+export async function uploadImportFile({
+  token,
+  dataType,
+  file
+}: {
+  token: string;
+  dataType: ImportDataType;
+  file: File;
+}) {
+  const formData = new FormData();
+  formData.set("data_type", dataType);
+  formData.set("file", file);
+
+  return request<ImportUploadResponse>("/api/admin/data/import", {
+    method: "POST",
+    token,
+    body: formData
+  });
+}
+
+export async function confirmImportJob({
+  token,
+  jobId,
+  fieldMapping
+}: {
+  token: string;
+  jobId: number;
+  fieldMapping: Record<string, string>;
+}) {
+  return request<ImportJob>(`/api/admin/data/import-jobs/${jobId}/confirm`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ field_mapping: fieldMapping })
   });
 }

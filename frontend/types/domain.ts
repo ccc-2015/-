@@ -168,3 +168,47 @@ export interface AgentChatResponse {
   tool_calls: AgentToolCall[];
   citations: AgentCitation[];
 }
+
+export interface AdminSchool {
+  id: number;
+  code: string;
+  name: string;
+  province?: string | null;
+  city?: string | null;
+  school_type?: string | null;
+  tier?: string | null;
+  ownership?: string | null;
+  website?: string | null;
+  description?: string | null;
+}
+
+export interface AdminMajor {
+  id: number;
+  code: string;
+  name: string;
+  category?: string | null;
+  level?: string | null;
+  description?: string | null;
+}
+
+export type ImportDataType = "schools" | "majors" | "school_major_groups";
+
+export interface ImportJob {
+  id: number;
+  data_type: ImportDataType;
+  original_filename: string;
+  status: string;
+  total_rows: number;
+  valid_rows: number;
+  error_rows: number;
+  preview_rows?: Record<string, unknown>[] | null;
+  field_names?: string[] | null;
+  validation_errors?: Record<string, unknown>[] | null;
+  created_at: string;
+}
+
+export interface ImportUploadResponse {
+  job: ImportJob;
+  required_fields: string[];
+  optional_fields: string[];
+}
