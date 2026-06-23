@@ -12,6 +12,7 @@ import type {
   PolicyCheckItem,
   PolicyCheckResponse,
   RankLookupResponse,
+  RecommendationGenerateResponse,
   ScoreSegment,
   SearchGroupsResponse,
   StudentProfile
@@ -395,6 +396,28 @@ export async function searchAdmissionGroups({
       use_profile: useProfile,
       only_eligible: onlyEligible,
       limit: limit ?? 50
+    })
+  });
+}
+
+export async function generateRecommendations({
+  token,
+  batch,
+  limit,
+  onlyEligible
+}: {
+  token: string;
+  batch?: string;
+  limit?: number;
+  onlyEligible?: boolean;
+}) {
+  return request<RecommendationGenerateResponse>("/api/recommendations/generate", {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      batch: batch?.trim() || null,
+      limit: limit ?? 30,
+      only_eligible: onlyEligible ?? true
     })
   });
 }

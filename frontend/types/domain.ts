@@ -21,7 +21,7 @@ export type SubjectTrack = "物理类" | "历史类";
 
 export type BatchType = "普通本科批" | "普通高职（专科）批";
 
-export type RiskLevel = "冲" | "稳" | "保" | "兜底";
+export type RiskLevel = "冲" | "稳" | "保" | "兜底" | "待评估";
 
 export type KnowledgeStatus =
   | "draft"
@@ -92,6 +92,42 @@ export interface RecommendationItem {
   reasons: string[];
   warnings: string[];
   sources: string[];
+}
+
+export interface GeneratedRecommendationItem {
+  group_id: number;
+  school_id: number;
+  school_code: string;
+  school_name: string;
+  province?: string | null;
+  city?: string | null;
+  school_type?: string | null;
+  tier?: string | null;
+  group_code: string;
+  group_name: string;
+  year: number;
+  batch: string;
+  subject_track: string;
+  subject_requirements?: string | null;
+  risk_level: RiskLevel;
+  match_score: number;
+  admission_risk_score: number;
+  suggested_adjustment: boolean;
+  plan_count?: number | null;
+  historical_min_score?: number | null;
+  historical_min_rank?: number | null;
+  rank_gap?: number | null;
+  majors: string[];
+  reasons: string[];
+  warnings: string[];
+  sources: string[];
+}
+
+export interface RecommendationGenerateResponse {
+  profile_id: number;
+  batch?: string | null;
+  items: GeneratedRecommendationItem[];
+  warnings: string[];
 }
 
 export interface SchoolSummary {

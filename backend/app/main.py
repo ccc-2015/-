@@ -1,7 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import admin_data, admin_knowledge, admin_schools, admin_users, admission, agent, auth, health, policy, profile, score
+from app.api.routes import (
+    admin_data,
+    admin_knowledge,
+    admin_schools,
+    admin_users,
+    admission,
+    agent,
+    auth,
+    health,
+    policy,
+    profile,
+    recommendations,
+    score,
+)
 from app.core.config import get_settings
 from app.core.database import init_db
 from app.services.seed_service import ensure_seed_data
@@ -26,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(score.router, prefix="/api/score", tags=["score"])
     app.include_router(policy.router, prefix="/api/policy", tags=["policy"])
     app.include_router(admission.router, prefix="/api/admission", tags=["admission"])
+    app.include_router(recommendations.router, prefix="/api/recommendations", tags=["recommendations"])
     app.include_router(admin_data.router, prefix="/api/admin/data", tags=["admin-data"])
     app.include_router(admin_knowledge.router, prefix="/api/admin", tags=["admin-knowledge"])
     app.include_router(admin_schools.router, prefix="/api/admin", tags=["admin-schools"])
