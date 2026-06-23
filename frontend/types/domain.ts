@@ -44,6 +44,16 @@ export interface CurrentUser {
   defaultPortal: Portal;
 }
 
+export interface AdminUser {
+  id: number;
+  username: string;
+  phone?: string | null;
+  display_name: string;
+  is_active: boolean;
+  roles: UserRole[];
+  created_at: string;
+}
+
 export interface AuthSession {
   token: string;
   user: CurrentUser;

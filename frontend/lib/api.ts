@@ -1,5 +1,6 @@
 import type {
   AdminMajor,
+  AdminUser,
   AdminAgentOps,
   AdminAgentConversationDetail,
   AdminAgentConversationSummary,
@@ -280,6 +281,10 @@ export async function getAdminAgentConversation({ token, conversationId }: { tok
 
 export async function getAdminDashboard(token: string) {
   return request<AdminDashboard>("/api/admin/dashboard", { token });
+}
+
+export async function listAdminUsers(token: string, keyword?: string) {
+  return request<AdminUser[]>(withQuery("/api/admin/users", { keyword }), { token });
 }
 
 export async function getAdminAgentOps(token: string) {

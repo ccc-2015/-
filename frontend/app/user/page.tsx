@@ -10,10 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RiskDistribution } from "@/components/charts/risk-distribution";
 import { RankTrend } from "@/components/charts/rank-trend";
 import { getStoredSession } from "@/lib/auth-store";
-import { getMyProfile } from "@/lib/api";
-import { mockRecommendations } from "@/lib/mock-data";
+import { generateRecommendations, getMyProfile } from "@/lib/api";
 import { formatNumber } from "@/lib/utils";
-import type { StudentProfile } from "@/types/domain";
+import type { GeneratedRecommendationItem, RecommendationItem, StudentProfile } from "@/types/domain";
 
 function valueOrDash(value: string | number | null | undefined) {
   return value === null || value === undefined || value === "" ? "-" : value;
@@ -21,11 +20,12 @@ function valueOrDash(value: string | number | null | undefined) {
 
 export default function UserDashboardPage() {
   const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [recommendations, setRecommendations] = useState<GeneratedRecommendationItem[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function loadProfile() {
+    async function loadDashboard() {
       const session = getStoredSession();
       if (!session) {
         setError("登录状态已失效，请重新登录。");
@@ -34,16 +34,41 @@ export default function UserDashboardPage() {
       }
 
       try {
-        setProfile(await getMyProfile(session.token));
+        const [profileData, recommendationData] = await Promise.all([
+          getMyProfile(session.token),
+          generateRecommendations({ token: session.token, limit: 8, onlyEligible: true })
+        ]);
+        setProfile(profileData);
+        setRecommendations(recommendationData.items);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "画像加载失败");
+        setError(err instanceof Error ? err.message : "首页数据加载失败");
       } finally {
         setIsLoading(false);
       }
     }
 
-    loadProfile();
+    loadDashboard();
   }, []);
+
+  const riskItems: RecommendationItem[] = recommendations.map((item) => ({
+    id: String(item.group_id),
+    batch: item.batch as RecommendationItem["batch"],
+    schoolCode: item.school_code,
+    schoolName: item.school_name,
+    city: item.city ?? "-",
+    majorGroupCode: item.group_code,
+    majorGroupName: item.group_name,
+    riskLevel: item.risk_level,
+    matchScore: item.match_score,
+    admissionRiskScore: item.admission_risk_score,
+    suggestedAdjustment: item.suggested_adjustment,
+    historicalMinRank: item.historical_min_rank ?? 0,
+    planCount: item.plan_count ?? 0,
+    majors: item.majors,
+    reasons: item.reasons,
+    warnings: item.warnings,
+    sources: item.sources
+  }));
 
   return (
     <AppShell portal="user" title="用户端总览" description="从画像、匹配、推荐到志愿方案的完整报考闭环">
@@ -148,7 +173,7 @@ export default function UserDashboardPage() {
             <CardDescription>当前推荐候选池按风险标签统计</CardDescription>
           </CardHeader>
           <CardContent>
-            <RiskDistribution items={mockRecommendations} />
+            <RiskDistribution items={riskItems} />
           </CardContent>
         </Card>
 
@@ -158,17 +183,22 @@ export default function UserDashboardPage() {
             <CardDescription>每条推荐必须带原因、风险和来源</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {mockRecommendations.slice(0, 3).map((item) => (
-              <div key={item.id} className="rounded-md border border-border p-4">
+            {!recommendations.length && !isLoading ? (
+              <div className="rounded-md border border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                暂无推荐摘要，请先维护画像并准备演示数据。
+              </div>
+            ) : null}
+            {recommendations.slice(0, 3).map((item) => (
+              <div key={item.group_id} className="rounded-md border border-border p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="font-medium">{item.schoolName}</div>
+                    <div className="font-medium">{item.school_name}</div>
                     <div className="mt-1 text-sm text-muted-foreground">
-                      {item.majorGroupName} · {item.city}
+                      {item.group_name} · {item.city || "-"}
                     </div>
                   </div>
-                  <Badge variant={item.riskLevel === "冲" ? "warning" : item.riskLevel === "稳" ? "success" : "default"}>
-                    {item.riskLevel}
+                  <Badge variant={item.risk_level === "冲" ? "warning" : item.risk_level === "稳" ? "success" : "default"}>
+                    {item.risk_level}
                   </Badge>
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground">{item.reasons[0]}</p>
