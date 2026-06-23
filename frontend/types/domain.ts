@@ -137,3 +137,34 @@ export interface ChatMessage {
   content: string;
   citations?: string[];
 }
+
+export interface AgentCitation {
+  source_type: string;
+  source_title: string;
+  source_url?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentEvent {
+  type: string;
+  node?: string;
+  tool?: string;
+  status?: string;
+  intent?: string;
+  [key: string]: unknown;
+}
+
+export interface AgentToolCall {
+  tool_name: string;
+  arguments?: Record<string, unknown>;
+  result?: unknown;
+}
+
+export interface AgentChatResponse {
+  conversation_id: number;
+  thread_id: string;
+  answer: string;
+  events: AgentEvent[];
+  tool_calls: AgentToolCall[];
+  citations: AgentCitation[];
+}

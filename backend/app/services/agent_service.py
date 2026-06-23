@@ -94,5 +94,6 @@ def run_agent_chat(db: Session, user: User, message: str, conversation_id: int |
         thread_id=resolved_thread_id,
         answer=answer,
         events=result.get("events", []),
+        tool_calls=result.get("tool_calls", []),
         citations=result.get("citations", []),
     )

@@ -14,4 +14,5 @@ class AgentChatResponse(BaseModel):
     thread_id: str
     answer: str
     events: list[dict[str, Any]]
+    tool_calls: list[dict[str, Any]]
     citations: list[dict[str, Any]]

@@ -1,4 +1,4 @@
-import type { CurrentUser } from "@/types/domain";
+import type { AgentChatResponse, CurrentUser } from "@/types/domain";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -91,4 +91,26 @@ export async function login(username: string, password: string) {
 export async function getCurrentUser(token: string) {
   const user = await request<BackendUser>("/api/auth/me", { token });
   return mapUser(user);
+}
+
+export async function sendAgentMessage({
+  token,
+  message,
+  conversationId,
+  threadId
+}: {
+  token: string;
+  message: string;
+  conversationId?: number;
+  threadId?: string;
+}) {
+  return request<AgentChatResponse>("/api/agent/chat", {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      message,
+      conversation_id: conversationId,
+      thread_id: threadId
+    })
+  });
 }
