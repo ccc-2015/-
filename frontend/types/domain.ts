@@ -301,3 +301,42 @@ export interface PolicyCheckResponse {
   group_results: PolicyGroupCheckResult[];
   parallel_volunteer_rule: string;
 }
+
+export interface RankLookupResponse {
+  year: number;
+  subject_track: string;
+  score: number;
+  rank?: number | null;
+  matched_score?: number | null;
+  cumulative_count?: number | null;
+  source: string;
+}
+
+export interface SearchGroupItem {
+  group_id: number;
+  school_id: number;
+  school_code: string;
+  school_name: string;
+  province?: string | null;
+  city?: string | null;
+  school_type?: string | null;
+  tier?: string | null;
+  group_code: string;
+  group_name: string;
+  year: number;
+  batch: string;
+  subject_track: string;
+  subject_requirements?: string | null;
+  plan_count?: number | null;
+  historical_min_score?: number | null;
+  historical_min_rank?: number | null;
+  eligible: boolean;
+  eligibility_errors: string[];
+  eligibility_warnings: string[];
+}
+
+export interface SearchGroupsResponse {
+  items: SearchGroupItem[];
+  total: number;
+  used_profile: boolean;
+}

@@ -11,7 +11,9 @@ import type {
   ImportUploadResponse,
   PolicyCheckItem,
   PolicyCheckResponse,
+  RankLookupResponse,
   ScoreSegment,
+  SearchGroupsResponse,
   StudentProfile
 } from "@/types/domain";
 
@@ -184,6 +186,27 @@ export async function getCurrentUser(token: string) {
   return mapUser(user);
 }
 
+export async function lookupRank(token: string, params: { year: string; subjectTrack: string; score: string }) {
+  return request<RankLookupResponse>(
+    withQuery("/api/score/rank", {
+      year: params.year,
+      subject_track: params.subjectTrack,
+      score: params.score
+    }),
+    { token }
+  );
+}
+
+export async function listUserBatchLines(token: string, filters: { year?: string; subjectTrack?: string } = {}) {
+  return request<BatchLine[]>(
+    withQuery("/api/score/batch-lines", {
+      year: filters.year,
+      subject_track: filters.subjectTrack
+    }),
+    { token }
+  );
+}
+
 export async function getMyProfile(token: string) {
   const profile = await request<BackendStudentProfile>("/api/profile/me", { token });
   return mapStudentProfile(profile);
@@ -338,6 +361,40 @@ export async function checkPolicy({
     body: JSON.stringify({
       batch,
       group_items: groupItems
+    })
+  });
+}
+
+export async function searchAdmissionGroups({
+  token,
+  keyword,
+  year,
+  batch,
+  subjectTrack,
+  useProfile,
+  onlyEligible,
+  limit
+}: {
+  token: string;
+  keyword?: string;
+  year?: string;
+  batch?: string;
+  subjectTrack?: string;
+  useProfile: boolean;
+  onlyEligible: boolean;
+  limit?: number;
+}) {
+  return request<SearchGroupsResponse>("/api/admission/search-groups", {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      keyword: keyword?.trim() || null,
+      year: year ? Number(year) : null,
+      batch: batch?.trim() || null,
+      subject_track: subjectTrack?.trim() || null,
+      use_profile: useProfile,
+      only_eligible: onlyEligible,
+      limit: limit ?? 50
     })
   });
 }
