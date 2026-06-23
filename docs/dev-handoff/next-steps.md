@@ -9,15 +9,14 @@
 1. 评估真实 embedding 模型和成本。
 2. 选择向量存储方案：开发期可保留 SQLite metadata，最终建议 PostgreSQL + pgvector。
 3. 将 `local_hash_v1` 替换为真实 embedding，并保留关键词混合召回。
-4. Agent 引用展示 chunk、document、version、source_url、score、score_detail。
-5. 继续增强语义相似去重，减少同源政策、院校章程不同年份之间的误判。
+4. 继续增强语义相似去重，减少同源政策、院校章程不同年份之间的误判。
 
 验收点：
 
 - 管理端能查看每份文档的清洗质量报告和问题列表。
 - 低质量文档发布前有明确拦截或复核提示。
 - 完全重复的正文或来源 URL 不能发布。
-- Agent 引用中包含 `document_id`、`chunk_id`、`version`、`score_detail`。
+- Agent 引用中包含 `document_id`、`chunk_id`、`version`、`score_detail`，并在用户端可见。
 - 不发布的文档不会被 Agent 检索。
 
 ## 优先级 2：志愿方案增强

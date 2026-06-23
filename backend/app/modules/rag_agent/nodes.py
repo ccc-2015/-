@@ -143,7 +143,13 @@ def _policy_answer(state: AgentState) -> str:
     lines = ["我检索了已发布知识库，以下是可引用内容的摘要："]
     for index, item in enumerate(items[:3], start=1):
         excerpt = item.get("excerpt", "").replace("\n", " ").strip()
-        lines.append(f"{index}. {item['title']}：{excerpt[:180]}")
+        score = item.get("score")
+        score_text = f"，score={score}" if score is not None else ""
+        chunk_text = f"chunk={item.get('chunk_id')}" if item.get("chunk_id") else "document_fallback"
+        lines.append(
+            f"{index}. {item['title']}（document={item['id']}，{chunk_text}，version={item.get('version')}{score_text}）："
+            f"{excerpt[:180]}"
+        )
     lines.append("政策类结论需要以引用文档为准；如果问题涉及具体可报性，还应同时调用画像和规则校验。")
     return "\n".join(lines)
 

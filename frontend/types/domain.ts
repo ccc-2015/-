@@ -249,11 +249,22 @@ export interface ChatMessage {
   citations?: string[];
 }
 
+export interface AgentCitationMetadata {
+  document_id?: number;
+  chunk_id?: number | null;
+  chunk_index?: number | null;
+  version?: number;
+  category?: string | null;
+  score?: number | null;
+  score_detail?: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
 export interface AgentCitation {
   source_type: string;
   source_title: string;
   source_url?: string | null;
-  metadata?: Record<string, unknown>;
+  metadata?: AgentCitationMetadata;
 }
 
 export interface AgentEvent {

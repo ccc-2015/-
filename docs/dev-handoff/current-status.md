@@ -17,7 +17,7 @@
 - 知识库上传和切片：支持 `.txt`、`.md`、`.csv`、`.xlsx`、`.xls` 上传解析，自动生成 `knowledge_chunks`，支持手动重建切片和前端预览。
 - 知识库清洗质量报告：后端已生成 `knowledge_cleaning_reports`，管理端可查看综合评分、文本抽取、元数据、去重、表格结构、政策有效期、切片就绪度和疑似重复文档；低质量、缺来源、过期年份、无切片或完全重复文档会被发布前拦截。
 - 本地轻量向量：切片会生成 `local_hash_v1` hash embedding，metadata 中记录 provider、维度和向量。
-- Agent MVP：LangGraph 骨架已接入推荐引擎和 published 知识库切片混合检索，返回工具调用、引用来源和检索分数。
+- Agent MVP：LangGraph 骨架已接入推荐引擎和 published 知识库切片混合检索，返回工具调用、引用来源、`document_id`、`chunk_id`、`version` 和 `score_detail`，用户端聊天页可查看引用追溯信息。
 
 ## 仍未完成
 

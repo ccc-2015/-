@@ -50,6 +50,29 @@ function summarizeToolResult(result: unknown) {
   }
 }
 
+function formatCitationMeta(citation: AgentCitation) {
+  const metadata = citation.metadata ?? {};
+  const parts = [
+    metadata.document_id ? `document ${metadata.document_id}` : null,
+    metadata.chunk_id ? `chunk ${metadata.chunk_id}` : null,
+    metadata.chunk_index !== null && metadata.chunk_index !== undefined ? `#${Number(metadata.chunk_index) + 1}` : null,
+    metadata.version ? `v${metadata.version}` : null,
+    typeof metadata.score === "number" ? `score ${metadata.score.toFixed(4)}` : null
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function formatScoreDetail(citation: AgentCitation) {
+  const detail = citation.metadata?.score_detail;
+  if (!detail) {
+    return "";
+  }
+  return Object.entries(detail)
+    .filter(([key]) => key !== "score")
+    .map(([key, value]) => `${key}=${typeof value === "number" ? value.toFixed(4) : String(value)}`)
+    .join(" · ");
+}
+
 export default function ChatPage() {
   const [message, setMessage] = useState(initialPrompt);
   const [conversationId, setConversationId] = useState<number | undefined>();
@@ -145,6 +168,7 @@ export default function ChatPage() {
                       {entry.citations.map((citation, index) => (
                         <Badge key={`${citation.source_title}-${index}`} variant="outline">
                           {citation.source_title}
+                          {citation.metadata?.chunk_id ? ` · chunk ${citation.metadata.chunk_id}` : ""}
                         </Badge>
                       ))}
                     </div>
@@ -209,6 +233,9 @@ export default function ChatPage() {
                   <div key={`${citation.source_title}-${index}`} className="mb-2 rounded-md border border-border px-3 py-2 text-xs">
                     <div className="font-medium">{citation.source_title}</div>
                     <div className="mt-1 text-muted-foreground">{citation.source_type}</div>
+                    {formatCitationMeta(citation) ? <div className="mt-1 text-muted-foreground">{formatCitationMeta(citation)}</div> : null}
+                    {formatScoreDetail(citation) ? <div className="mt-1 text-muted-foreground">{formatScoreDetail(citation)}</div> : null}
+                    {citation.source_url ? <div className="mt-1 truncate text-muted-foreground">{citation.source_url}</div> : null}
                   </div>
                 ))
               ) : (
