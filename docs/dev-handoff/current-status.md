@@ -19,6 +19,7 @@
 - 本地轻量向量：切片会生成 `local_hash_v1` hash embedding，并写入结构化 `knowledge_embeddings`；metadata 中仍保留向量作为兼容 fallback，后端已抽象 `embedding_service`，后续可切换真实 embedding provider。
 - Agent MVP：LangGraph 骨架已接入推荐引擎和 published 知识库切片混合检索，返回工具调用、引用来源、`document_id`、`chunk_id`、`version` 和 `score_detail`，用户端聊天页可查看引用追溯信息。
 - 报告生成：已新增 `reports` 表，`/api/reports/generate` 可从已保存志愿方案生成网页报告快照，报告政策依据会优先引用 published 知识库切片并记录 `document_id`、`chunk_id`、`version`、检索方式和分数；`/api/reports/{report_id}/export` 支持 CSV 表格导出；用户端 `/user/reports` 已接真实接口并展示考生画像、推荐分布、志愿列表、推荐理由、风险提示、政策依据和免责声明。
+- 本地演示数据：新增 `backend/scripts/seed_demo_data.py`，可重复写入默认学生画像、演示招生数据和 published 政策知识文档，用于本地跑通“画像 -> 推荐 -> 志愿方案 -> 报告 -> 知识引用”链路。
 
 ## 仍未完成
 

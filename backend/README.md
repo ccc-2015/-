@@ -11,6 +11,14 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 首次启动会自动创建 SQLite 开发数据库 `app/data/dev.db`，并写入默认账号。
 
+如需本地直接演示推荐、志愿方案和报告链路，可先写入演示数据：
+
+```powershell
+python scripts/seed_demo_data.py
+```
+
+脚本会补齐默认 `student` 画像、演示院校专业组、招生计划、历年录取、批次线、一分一段和已发布政策知识文档，可重复执行。
+
 ## 默认账号
 
 - 管理端：`admin` / `123456`

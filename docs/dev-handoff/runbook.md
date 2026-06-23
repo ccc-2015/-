@@ -5,6 +5,17 @@
 - 管理端：`admin` / `123456`
 - 用户端：`student` / `123456`
 
+## 准备本地演示数据
+
+首次本地运行或需要重置演示链路时，先写入一组可重复执行的演示数据：
+
+```powershell
+cd backend
+python scripts/seed_demo_data.py
+```
+
+该脚本会补齐 `student` 演示画像、院校专业组、招生计划、历年录取、批次线、一分一段和一篇已发布政策知识文档，用于跑通“画像 -> 推荐 -> 志愿方案 -> 报告 -> 知识引用”链路。
+
 ## 启动后端
 
 ```powershell
@@ -44,7 +55,7 @@ npm run dev
 
 ```powershell
 cd backend
-python -m compileall app
+python -m compileall app scripts
 ```
 
 前端类型检查：
