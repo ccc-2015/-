@@ -6,7 +6,8 @@ import { GraduationCap, LockKeyhole, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { mockLogin, storeUser } from "@/lib/auth-store";
+import { storeSession } from "@/lib/auth-store";
+import { login } from "@/lib/api";
 import { getAvailablePortals } from "@/lib/permissions";
 
 export default function LoginPage() {
@@ -14,14 +15,17 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState("student");
   const [password, setPassword] = useState("123456");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setIsSubmitting(true);
 
     try {
-      const user = mockLogin(identifier, password);
-      storeUser(user);
+      const session = await login(identifier.trim(), password);
+      storeSession(session);
+      const user = session.user;
       const portals = getAvailablePortals(user);
 
       if (portals.length > 1) {
@@ -32,6 +36,8 @@ export default function LoginPage() {
       router.push(user.defaultPortal === "admin" ? "/admin" : "/user");
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -94,15 +100,15 @@ export default function LoginPage() {
 
               {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
-              <Button className="w-full" type="submit">
-                登录
+              <Button className="w-full" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "登录中..." : "登录"}
               </Button>
             </form>
 
             <div className="mt-5 rounded-md border border-border bg-muted/40 p-3 text-xs leading-6 text-muted-foreground">
-              <div>演示账号：`student` 进入用户端</div>
-              <div>演示账号：`admin` 进入管理端</div>
-              <div>演示账号：`advisor` 可选择用户端或管理端</div>
+              <div>默认账号：`student` / `123456` 进入用户端</div>
+              <div>默认账号：`admin` / `123456` 进入管理端</div>
+              <div>需要先启动后端：`python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload`</div>
             </div>
           </CardContent>
         </Card>

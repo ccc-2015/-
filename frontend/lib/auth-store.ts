@@ -1,50 +1,35 @@
 "use client";
 
-import type { CurrentUser } from "@/types/domain";
-import { mockUsers } from "@/lib/mock-data";
+import type { AuthSession } from "@/types/domain";
 
-const STORAGE_KEY = "zhiyuan-agent-current-user";
+const STORAGE_KEY = "zhiyuan-agent-session";
+const LEGACY_USER_KEY = "zhiyuan-agent-current-user";
 
-export function getStoredUser(): CurrentUser | null {
+export function getStoredSession(): AuthSession | null {
   if (typeof window === "undefined") {
     return null;
   }
 
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) {
+    window.localStorage.removeItem(LEGACY_USER_KEY);
     return null;
   }
 
   try {
-    return JSON.parse(raw) as CurrentUser;
+    return JSON.parse(raw) as AuthSession;
   } catch {
     window.localStorage.removeItem(STORAGE_KEY);
     return null;
   }
 }
 
-export function storeUser(user: CurrentUser) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+export function storeSession(session: AuthSession) {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  window.localStorage.removeItem(LEGACY_USER_KEY);
 }
 
 export function clearStoredUser() {
   window.localStorage.removeItem(STORAGE_KEY);
-}
-
-export function mockLogin(identifier: string, password: string) {
-  const normalized = identifier.trim();
-
-  if (!password.trim()) {
-    throw new Error("请输入密码");
-  }
-
-  if (normalized.includes("admin")) {
-    return mockUsers.admin;
-  }
-
-  if (normalized.includes("advisor")) {
-    return mockUsers.multiRole;
-  }
-
-  return mockUsers.student;
+  window.localStorage.removeItem(LEGACY_USER_KEY);
 }

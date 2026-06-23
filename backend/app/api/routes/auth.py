@@ -24,6 +24,7 @@ def build_user_me(user: User) -> UserMe:
     return UserMe(
         id=user.id,
         username=user.username,
+        phone=user.phone,
         display_name=user.display_name,
         roles=roles,
         permissions=permissions,

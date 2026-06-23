@@ -44,6 +44,11 @@ export interface CurrentUser {
   defaultPortal: Portal;
 }
 
+export interface AuthSession {
+  token: string;
+  user: CurrentUser;
+}
+
 export interface StudentProfile {
   id: string;
   name: string;

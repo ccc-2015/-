@@ -15,6 +15,7 @@ class TokenResponse(BaseModel):
 class UserMe(BaseModel):
     id: int
     username: str
+    phone: str | None = None
     display_name: str
     roles: list[str]
     permissions: list[str]

@@ -23,7 +23,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { clearStoredUser, getStoredUser } from "@/lib/auth-store";
+import { clearStoredUser, getStoredSession, storeSession } from "@/lib/auth-store";
+import { getCurrentUser } from "@/lib/api";
 import { canAccessPortal, roleLabel } from "@/lib/permissions";
 import type { CurrentUser, Portal } from "@/types/domain";
 
@@ -69,20 +70,43 @@ export function AppShell({
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    const stored = getStoredUser();
+    let isMounted = true;
 
-    if (!stored) {
-      router.replace("/login");
-      return;
+    async function verifySession() {
+      const session = getStoredSession();
+
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+
+      try {
+        const freshUser = await getCurrentUser(session.token);
+
+        if (!isMounted) {
+          return;
+        }
+
+        storeSession({ token: session.token, user: freshUser });
+
+        if (!canAccessPortal(freshUser, portal)) {
+          router.replace("/select-portal");
+          return;
+        }
+
+        setUser(freshUser);
+        setIsChecking(false);
+      } catch {
+        clearStoredUser();
+        router.replace("/login");
+      }
     }
 
-    if (!canAccessPortal(stored, portal)) {
-      router.replace("/select-portal");
-      return;
-    }
+    verifySession();
 
-    setUser(stored);
-    setIsChecking(false);
+    return () => {
+      isMounted = false;
+    };
   }, [portal, router]);
 
   function handleLogout() {

@@ -6,7 +6,8 @@ import { ArrowRight, LayoutDashboard, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getStoredUser } from "@/lib/auth-store";
+import { clearStoredUser, getStoredSession, storeSession } from "@/lib/auth-store";
+import { getCurrentUser } from "@/lib/api";
 import { getAvailablePortals, roleLabel } from "@/lib/permissions";
 import type { CurrentUser, Portal } from "@/types/domain";
 
@@ -28,13 +29,34 @@ export default function SelectPortalPage() {
   const [user, setUser] = useState<CurrentUser | null>(null);
 
   useEffect(() => {
-    const stored = getStoredUser();
-    if (!stored) {
-      router.replace("/login");
-      return;
+    let isMounted = true;
+
+    async function verifySession() {
+      const session = getStoredSession();
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+
+      try {
+        const freshUser = await getCurrentUser(session.token);
+        if (!isMounted) {
+          return;
+        }
+
+        storeSession({ token: session.token, user: freshUser });
+        setUser(freshUser);
+      } catch {
+        clearStoredUser();
+        router.replace("/login");
+      }
     }
 
-    setUser(stored);
+    verifySession();
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   if (!user) {
