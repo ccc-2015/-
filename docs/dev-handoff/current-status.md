@@ -16,13 +16,13 @@
 - 知识库管理：支持文档 CRUD、发布、归档、删除。
 - 知识库上传和切片：支持 `.txt`、`.md`、`.csv`、`.xlsx`、`.xls` 上传解析，自动生成 `knowledge_chunks`，支持手动重建切片和前端预览。
 - 知识库清洗质量报告：后端已生成 `knowledge_cleaning_reports`，管理端可查看综合评分、文本抽取、元数据、去重、表格结构、政策有效期、切片就绪度和疑似重复文档；低质量、缺来源、过期年份、无切片或完全重复文档会被发布前拦截。
-- 本地轻量向量：切片会生成 `local_hash_v1` hash embedding，metadata 中记录 provider、维度和向量；后端已抽象 `embedding_service`，后续可切换真实 embedding provider。
+- 本地轻量向量：切片会生成 `local_hash_v1` hash embedding，并写入结构化 `knowledge_embeddings`；metadata 中仍保留向量作为兼容 fallback，后端已抽象 `embedding_service`，后续可切换真实 embedding provider。
 - Agent MVP：LangGraph 骨架已接入推荐引擎和 published 知识库切片混合检索，返回工具调用、引用来源、`document_id`、`chunk_id`、`version` 和 `score_detail`，用户端聊天页可查看引用追溯信息。
 
 ## 仍未完成
 
 - 知识库深度清洗：当前质量报告是规则评分，尚未接 OCR 置信度、表格错位定位和更精细的语义相似去重。
-- 生产级向量检索：当前是可配置 provider 的本地 hash embedding 混合检索，尚未接外部 embedding 模型或 pgvector。
+- 生产级向量检索：当前是可配置 provider 的本地 hash embedding 混合检索，并已有 `knowledge_embeddings` 结构化表；尚未接外部 embedding 模型或 pgvector。
 - 志愿方案增强：当前已支持持久化保存、上移/下移排序和校验，但还没有复制多个方案版本、导出和数据版本引用。
 - 报告生成：`/user/reports` 仍是静态展示，PDF/网页报告/表格导出未实现。
 - 管理端运营：对话日志、Agent 运营、审计日志、用户管理部分页面仍未完全接真实接口。

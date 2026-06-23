@@ -9,7 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.knowledge import KnowledgeChunk, KnowledgeCleaningReport, KnowledgeDocument
+from app.models.knowledge import KnowledgeChunk, KnowledgeCleaningReport, KnowledgeDocument, KnowledgeEmbedding
 from app.models.user import User
 from app.services.embedding_service import (
     build_embedding_id,
@@ -91,28 +91,39 @@ def create_document_from_upload(
 
 
 def rebuild_document_chunks(db: Session, document: KnowledgeDocument, chunk_size: int = 800, overlap: int = 120, refresh_report: bool = True) -> int:
+    chunk_ids = select(KnowledgeChunk.id).where(KnowledgeChunk.document_id == document.id)
+    db.execute(delete(KnowledgeEmbedding).where(KnowledgeEmbedding.chunk_id.in_(chunk_ids)))
     db.execute(delete(KnowledgeChunk).where(KnowledgeChunk.document_id == document.id))
     chunks = split_text(document.content, chunk_size=chunk_size, overlap=overlap)
     for index, chunk in enumerate(chunks):
         embedding = embed_text(chunk)
         embedding_id = build_embedding_id(document.id, document.version, index, chunk)
+        chunk_record = KnowledgeChunk(
+            document_id=document.id,
+            chunk_index=index,
+            content=chunk,
+            embedding_id=embedding_id,
+            metadata_json={
+                "document_id": document.id,
+                "document_title": document.title,
+                "document_version": document.version,
+                "category": document.category,
+                "status": document.status,
+                "chunk_size": len(chunk),
+                "embedding_provider": embedding_provider(),
+                "embedding_dimensions": embedding_dimensions(),
+                "embedding": embedding,
+            },
+        )
+        db.add(chunk_record)
+        db.flush()
         db.add(
-            KnowledgeChunk(
-                document_id=document.id,
-                chunk_index=index,
-                content=chunk,
-                embedding_id=embedding_id,
-                metadata_json={
-                    "document_id": document.id,
-                    "document_title": document.title,
-                    "document_version": document.version,
-                    "category": document.category,
-                    "status": document.status,
-                    "chunk_size": len(chunk),
-                    "embedding_provider": embedding_provider(),
-                    "embedding_dimensions": embedding_dimensions(),
-                    "embedding": embedding,
-                },
+            KnowledgeEmbedding(
+                chunk_id=chunk_record.id,
+                provider=embedding_provider(),
+                model=embedding_provider(),
+                dimensions=embedding_dimensions(),
+                vector_json=embedding,
             )
         )
     if refresh_report:

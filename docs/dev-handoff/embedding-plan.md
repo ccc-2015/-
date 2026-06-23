@@ -6,7 +6,7 @@
 
 - 当前默认 `EMBEDDING_PROVIDER=local_hash_v1`，维度 `64`。
 - 后端已抽象 `app.services.embedding_service`，知识库切片和 Agent 检索只依赖 `embed_text`、`embedding_provider`、`embedding_dimensions`、`cosine_similarity`。
-- SQLite 开发库仍把向量临时存放在 `knowledge_chunks.metadata_json.embedding` 中，方便本地演示和 smoke test。
+- SQLite 开发库已新增 `knowledge_embeddings` 结构化表，当前用 `vector_json` 存储向量；`knowledge_chunks.metadata_json.embedding` 仅作为兼容 fallback。
 - Agent 检索保留混合召回：向量相似度、token overlap、关键词命中、标题命中、标签命中。
 
 ## 真实 Embedding 候选
@@ -19,7 +19,7 @@
 
 1. 保留 `local_hash_v1` 作为开发 fallback。
 2. 新增 `EMBEDDING_PROVIDER=bge_m3` 或 `openai_compatible`，在 `embedding_service` 中接真实模型。
-3. 新增 `knowledge_embeddings` 表或迁移到 PostgreSQL `pgvector`。
+3. 将 `knowledge_embeddings.vector_json` 迁移到 PostgreSQL `pgvector`。
 4. 切片重建时写入真实向量，同时保留关键词混合召回。
 5. Agent 引用继续返回 `document_id`、`chunk_id`、`version`、`score_detail`，并在 `score_detail` 中记录 provider。
 
@@ -32,7 +32,8 @@ knowledge_embeddings
   provider
   model
   dimensions
-  embedding vector(dimensions)
+  vector_json JSON       开发期 SQLite fallback
+  embedding vector(dimensions)  PostgreSQL + pgvector 目标字段
   created_at
 ```
 

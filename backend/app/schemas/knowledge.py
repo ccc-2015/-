@@ -51,6 +51,8 @@ class KnowledgeChunkOut(BaseModel):
     content: str
     embedding_id: str | None = None
     metadata_json: dict | None = None
+    embedding_provider: str | None = None
+    embedding_dimensions: int | None = None
     created_at: datetime
 
 

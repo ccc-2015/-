@@ -43,6 +43,25 @@ class KnowledgeChunk(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     document: Mapped[KnowledgeDocument] = relationship(back_populates="chunks")
+    embedding: Mapped["KnowledgeEmbedding | None"] = relationship(
+        back_populates="chunk",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class KnowledgeEmbedding(Base):
+    __tablename__ = "knowledge_embeddings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chunk_id: Mapped[int] = mapped_column(ForeignKey("knowledge_chunks.id"), unique=True, index=True)
+    provider: Mapped[str] = mapped_column(String(64), index=True)
+    model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    dimensions: Mapped[int] = mapped_column(Integer)
+    vector_json: Mapped[list] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    chunk: Mapped[KnowledgeChunk] = relationship(back_populates="embedding")
 
 
 class KnowledgeCleaningReport(Base):

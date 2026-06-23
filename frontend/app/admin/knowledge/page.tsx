@@ -113,11 +113,17 @@ function normalizePayload(form: KnowledgeDocumentPayload): KnowledgeDocumentPayl
 }
 
 function chunkEmbeddingProvider(chunk: KnowledgeChunk) {
+  if (chunk.embedding_provider) {
+    return chunk.embedding_provider;
+  }
   const provider = chunk.metadata_json?.embedding_provider;
   return typeof provider === "string" ? provider : chunk.embedding_id ? "unknown" : "未生成";
 }
 
 function chunkEmbeddingDimensions(chunk: KnowledgeChunk) {
+  if (typeof chunk.embedding_dimensions === "number") {
+    return chunk.embedding_dimensions;
+  }
   const dimensions = chunk.metadata_json?.embedding_dimensions;
   return typeof dimensions === "number" ? dimensions : null;
 }

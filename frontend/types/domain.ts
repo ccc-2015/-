@@ -192,6 +192,8 @@ export interface KnowledgeChunk {
   content: string;
   embedding_id?: string | null;
   metadata_json?: Record<string, unknown> | null;
+  embedding_provider?: string | null;
+  embedding_dimensions?: number | null;
   created_at: string;
 }
 

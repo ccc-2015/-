@@ -1,5 +1,5 @@
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.admission import AdmissionPlan, HistoricalAdmission, School, SchoolMajorGroup
 from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
@@ -106,6 +106,7 @@ def search_published_knowledge(db: Session, query: str, limit: int = 5) -> dict:
     rows = list(
         db.execute(
             select(KnowledgeChunk, KnowledgeDocument)
+            .options(selectinload(KnowledgeChunk.embedding))
             .join(KnowledgeDocument, KnowledgeDocument.id == KnowledgeChunk.document_id)
             .where(KnowledgeDocument.status == "published")
             .order_by(KnowledgeDocument.updated_at.desc(), KnowledgeChunk.chunk_index)
@@ -230,7 +231,8 @@ def _knowledge_score(
     document: KnowledgeDocument,
 ) -> dict:
     metadata = chunk.metadata_json or {}
-    chunk_embedding = metadata.get("embedding")
+    chunk_embedding = chunk.embedding.vector_json if chunk.embedding else metadata.get("embedding")
+    embedding_source = "knowledge_embeddings" if chunk.embedding else "chunk_metadata"
     vector_score = cosine_similarity(query_embedding, chunk_embedding if isinstance(chunk_embedding, list) else None)
     chunk_text = chunk.content.lower()
     title_text = document.title.lower()
@@ -252,4 +254,5 @@ def _knowledge_score(
         "title_score": round(title_score, 4),
         "tag_score": round(tag_score, 4),
         "retrieval": f"hybrid_{embedding_provider()}",
+        "embedding_source": embedding_source,
     }

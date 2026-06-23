@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import require_admin
 from app.core.database import get_db
@@ -190,13 +190,31 @@ def list_chunks(
     document_id: int,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
-) -> list[KnowledgeChunk]:
+) -> list[KnowledgeChunkOut]:
     _get_document_or_404(db, document_id)
-    return list(
+    chunks = list(
         db.scalars(
-            select(KnowledgeChunk).where(KnowledgeChunk.document_id == document_id).order_by(KnowledgeChunk.chunk_index).limit(500)
+            select(KnowledgeChunk)
+            .options(selectinload(KnowledgeChunk.embedding))
+            .where(KnowledgeChunk.document_id == document_id)
+            .order_by(KnowledgeChunk.chunk_index)
+            .limit(500)
         ).all()
     )
+    return [
+        KnowledgeChunkOut(
+            id=chunk.id,
+            document_id=chunk.document_id,
+            chunk_index=chunk.chunk_index,
+            content=chunk.content,
+            embedding_id=chunk.embedding_id,
+            metadata_json=chunk.metadata_json,
+            embedding_provider=chunk.embedding.provider if chunk.embedding else None,
+            embedding_dimensions=chunk.embedding.dimensions if chunk.embedding else None,
+            created_at=chunk.created_at,
+        )
+        for chunk in chunks
+    ]
 
 
 def _get_document_or_404(db: Session, document_id: int) -> KnowledgeDocument:
