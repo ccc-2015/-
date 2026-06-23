@@ -50,21 +50,28 @@ export interface AuthSession {
 }
 
 export interface StudentProfile {
-  id: string;
-  name: string;
+  id: number;
+  user_id: number;
+  name: string | null;
   year: number;
   province: string;
-  score: number;
-  rank: number;
-  subjectTrack: SubjectTrack;
+  score: number | null;
+  rank: number | null;
+  subject_track: SubjectTrack | null;
   selectedSubjects: string[];
   targetBatches: BatchType[];
   cityPreferences: string[];
   majorPreferences: string[];
-  tuitionLimit: number;
+  schoolTierPreferences: string[];
+  tuitionLimit: number | null;
   acceptsPrivate: boolean;
   acceptsCooperation: boolean;
+  acceptsIndependent: boolean;
   acceptsAdjustment: boolean;
+  employmentPreference: string | null;
+  furtherStudyPreference: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface RecommendationItem {

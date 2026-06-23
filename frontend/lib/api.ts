@@ -5,7 +5,8 @@ import type {
   CurrentUser,
   ImportDataType,
   ImportJob,
-  ImportUploadResponse
+  ImportUploadResponse,
+  StudentProfile
 } from "@/types/domain";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -74,6 +75,31 @@ type LoginResponse = {
   user: BackendUser;
 };
 
+type BackendStudentProfile = {
+  id: number;
+  user_id: number;
+  name: string | null;
+  year: number;
+  province: string;
+  score: number | null;
+  rank: number | null;
+  subject_track: StudentProfile["subject_track"];
+  selected_subjects: string[];
+  target_batches: StudentProfile["targetBatches"];
+  city_preferences: string[];
+  major_preferences: string[];
+  school_tier_preferences: string[];
+  tuition_limit: number | null;
+  accepts_private: boolean;
+  accepts_cooperation: boolean;
+  accepts_independent: boolean;
+  accepts_adjustment: boolean;
+  employment_preference: string | null;
+  further_study_preference: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 function mapUser(user: BackendUser): CurrentUser {
   return {
     id: String(user.id),
@@ -82,6 +108,56 @@ function mapUser(user: BackendUser): CurrentUser {
     roles: user.roles,
     permissions: user.permissions,
     defaultPortal: user.default_portal
+  };
+}
+
+function mapStudentProfile(profile: BackendStudentProfile): StudentProfile {
+  return {
+    id: profile.id,
+    user_id: profile.user_id,
+    name: profile.name,
+    year: profile.year,
+    province: profile.province,
+    score: profile.score,
+    rank: profile.rank,
+    subject_track: profile.subject_track,
+    selectedSubjects: profile.selected_subjects,
+    targetBatches: profile.target_batches,
+    cityPreferences: profile.city_preferences,
+    majorPreferences: profile.major_preferences,
+    schoolTierPreferences: profile.school_tier_preferences,
+    tuitionLimit: profile.tuition_limit,
+    acceptsPrivate: profile.accepts_private,
+    acceptsCooperation: profile.accepts_cooperation,
+    acceptsIndependent: profile.accepts_independent,
+    acceptsAdjustment: profile.accepts_adjustment,
+    employmentPreference: profile.employment_preference,
+    furtherStudyPreference: profile.further_study_preference,
+    created_at: profile.created_at,
+    updated_at: profile.updated_at
+  };
+}
+
+function toProfilePayload(profile: StudentProfile) {
+  return {
+    name: profile.name,
+    year: profile.year,
+    province: profile.province,
+    score: profile.score,
+    rank: profile.rank,
+    subject_track: profile.subject_track,
+    selected_subjects: profile.selectedSubjects,
+    target_batches: profile.targetBatches,
+    city_preferences: profile.cityPreferences,
+    major_preferences: profile.majorPreferences,
+    school_tier_preferences: profile.schoolTierPreferences,
+    tuition_limit: profile.tuitionLimit,
+    accepts_private: profile.acceptsPrivate,
+    accepts_cooperation: profile.acceptsCooperation,
+    accepts_independent: profile.acceptsIndependent,
+    accepts_adjustment: profile.acceptsAdjustment,
+    employment_preference: profile.employmentPreference,
+    further_study_preference: profile.furtherStudyPreference
   };
 }
 
@@ -100,6 +176,20 @@ export async function login(username: string, password: string) {
 export async function getCurrentUser(token: string) {
   const user = await request<BackendUser>("/api/auth/me", { token });
   return mapUser(user);
+}
+
+export async function getMyProfile(token: string) {
+  const profile = await request<BackendStudentProfile>("/api/profile/me", { token });
+  return mapStudentProfile(profile);
+}
+
+export async function updateMyProfile(token: string, profile: StudentProfile) {
+  const updated = await request<BackendStudentProfile>("/api/profile/me", {
+    method: "PUT",
+    token,
+    body: JSON.stringify(toProfilePayload(profile))
+  });
+  return mapStudentProfile(updated);
 }
 
 export async function sendAgentMessage({

@@ -44,21 +44,28 @@ export const mockUsers: Record<"student" | "admin" | "multiRole", CurrentUser> =
 };
 
 export const mockProfile: StudentProfile = {
-  id: "profile_1",
+  id: 1,
+  user_id: 1,
   name: "李同学",
   year: 2026,
   province: "河南",
   score: 568,
   rank: 58620,
-  subjectTrack: "物理类",
+  subject_track: "物理类",
   selectedSubjects: ["化学", "生物"],
   targetBatches: ["普通本科批", "普通高职（专科）批"],
   cityPreferences: ["郑州", "洛阳", "武汉", "西安"],
   majorPreferences: ["计算机类", "电子信息类", "自动化"],
+  schoolTierPreferences: ["双一流", "省重点"],
   tuitionLimit: 16000,
   acceptsPrivate: false,
   acceptsCooperation: false,
-  acceptsAdjustment: true
+  acceptsIndependent: false,
+  acceptsAdjustment: true,
+  employmentPreference: "省内就业优先",
+  furtherStudyPreference: "考研机会",
+  created_at: "2026-06-20T00:00:00",
+  updated_at: "2026-06-20T00:00:00"
 };
 
 export const mockRecommendations: RecommendationItem[] = [
