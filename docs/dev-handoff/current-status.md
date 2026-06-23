@@ -18,14 +18,14 @@
 - 知识库清洗质量报告：后端已生成 `knowledge_cleaning_reports`，管理端可查看综合评分、文本抽取、元数据、去重、表格结构、政策有效期、切片就绪度和疑似重复文档；低质量、缺来源、过期年份、无切片或完全重复文档会被发布前拦截。
 - 本地轻量向量：切片会生成 `local_hash_v1` hash embedding，并写入结构化 `knowledge_embeddings`；metadata 中仍保留向量作为兼容 fallback，后端已抽象 `embedding_service`，后续可切换真实 embedding provider。
 - Agent MVP：LangGraph 骨架已接入推荐引擎和 published 知识库切片混合检索，返回工具调用、引用来源、`document_id`、`chunk_id`、`version` 和 `score_detail`，用户端聊天页可查看引用追溯信息。
-- 报告生成：已新增 `reports` 表，`/api/reports/generate` 可从已保存志愿方案生成网页报告快照，用户端 `/user/reports` 已接真实接口并展示考生画像、推荐分布、志愿列表、推荐理由、风险提示、政策依据和免责声明。
+- 报告生成：已新增 `reports` 表，`/api/reports/generate` 可从已保存志愿方案生成网页报告快照，`/api/reports/{report_id}/export` 支持 CSV 表格导出；用户端 `/user/reports` 已接真实接口并展示考生画像、推荐分布、志愿列表、推荐理由、风险提示、政策依据和免责声明。
 
 ## 仍未完成
 
 - 知识库深度清洗：当前质量报告是规则评分，尚未接 OCR 置信度、表格错位定位和更精细的语义相似去重。
 - 生产级向量检索：当前是可配置 provider 的本地 hash embedding 混合检索，并已有 `knowledge_embeddings` 结构化表；尚未接外部 embedding 模型或 pgvector。
 - 志愿方案增强：当前已支持持久化保存、多版本、复制、上移/下移排序、规则校验和 JSON 快照导出，但还没有表格/PDF 导出、拖拽排序和统一数据版本引用。
-- 报告生成：网页报告已可从已保存方案生成，但 PDF/表格导出、报告分享链接、正式知识库政策引用和统一数据版本引用仍未完成。
+- 报告生成：网页报告和 CSV 表格导出已可从已保存方案生成，但 PDF 导出、报告分享链接、正式知识库政策引用和统一数据版本引用仍未完成。
 - 管理端运营：对话日志、Agent 运营、审计日志、用户管理部分页面仍未完全接真实接口。
 - 数据版本：推荐、知识库引用和导入任务尚未形成统一数据版本号。
 - 自动化测试：已有手动 smoke test，缺 pytest/接口测试和前端测试。

@@ -1,5 +1,7 @@
 from collections import Counter
 from datetime import datetime
+from io import StringIO
+import csv
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -113,6 +115,70 @@ def report_to_out(report: Report) -> ReportOut:
         created_at=report.created_at,
         updated_at=report.updated_at,
     )
+
+
+def build_report_csv(report: Report) -> str:
+    content = ReportContent.model_validate(report.content_json)
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["报告标题", report.title])
+    writer.writerow(["生成时间", report.created_at.isoformat()])
+    writer.writerow(["数据版本", report.data_version])
+    writer.writerow(["方案标题", content.plan.title])
+    writer.writerow(["批次", content.plan.batch])
+    writer.writerow(["方案版本", f"V{content.plan.version}"])
+    writer.writerow([])
+    writer.writerow(["考生画像"])
+    writer.writerow(["姓名", "年份", "省份", "成绩", "位次", "科类", "选科", "目标批次", "接受调剂"])
+    writer.writerow(
+        [
+            content.profile.name or "",
+            content.profile.year or "",
+            content.profile.province or "",
+            content.profile.score or "",
+            content.profile.rank or "",
+            content.profile.subject_track or "",
+            "、".join(content.profile.selected_subjects),
+            "、".join(content.profile.target_batches),
+            "是" if content.profile.accepts_adjustment else "否",
+        ]
+    )
+    writer.writerow([])
+    writer.writerow(["推荐分布"])
+    writer.writerow(["风险层级", "数量"])
+    for risk, count in content.summary.risk_distribution.items():
+        writer.writerow([risk, count])
+    writer.writerow(["建议服从调剂数量", content.summary.adjustment_count])
+    writer.writerow(["风险提示数量", content.summary.warning_count])
+    writer.writerow([])
+    writer.writerow(["志愿列表"])
+    writer.writerow(["序号", "院校", "专业组", "专业组代码", "科类", "城市", "风险", "匹配分", "调剂建议", "专业建议", "推荐理由", "风险提示"])
+    for item in content.volunteer_items:
+        writer.writerow(
+            [
+                item.order,
+                item.school_name or "",
+                item.group_name or "",
+                item.group_code or "",
+                item.subject_track or "",
+                item.city or "",
+                item.risk_level or "",
+                item.match_score if item.match_score is not None else "",
+                "建议服从调剂" if item.suggested_adjustment else "谨慎不服从",
+                "、".join(item.majors),
+                "；".join(item.reasons),
+                "；".join(item.warnings),
+            ]
+        )
+    writer.writerow([])
+    writer.writerow(["政策依据"])
+    for citation in content.policy_citations:
+        writer.writerow([citation])
+    writer.writerow([])
+    writer.writerow(["免责声明"])
+    for disclaimer in content.disclaimers:
+        writer.writerow([disclaimer])
+    return "\ufeff" + output.getvalue()
 
 
 def _build_profile_snapshot(profile: StudentProfile | None) -> ReportProfileSnapshot:

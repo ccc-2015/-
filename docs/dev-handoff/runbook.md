@@ -105,6 +105,7 @@ netstat -ano | Select-String ':3000'
 - `GET /api/reports`
 - `POST /api/reports/generate`
 - `GET /api/reports/{report_id}`
+- `GET /api/reports/{report_id}/export`
 - `POST /api/admin/knowledge/documents/upload`
 - `POST /api/admin/knowledge/documents/{document_id}/chunks/rebuild`
 - `GET /api/admin/knowledge/documents/{document_id}/chunks`

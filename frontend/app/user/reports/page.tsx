@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, RefreshCcw } from "lucide-react";
+import { Download, FileText, RefreshCcw } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { generateReport, listReports, listVolunteerPlans } from "@/lib/api";
+import { exportReportCsv, generateReport, listReports, listVolunteerPlans } from "@/lib/api";
 import { getStoredSession } from "@/lib/auth-store";
 import { formatNumber } from "@/lib/utils";
 import type { UserReport, VolunteerPlan } from "@/types/domain";
@@ -20,6 +20,7 @@ export default function ReportsPage() {
   const [selectedReport, setSelectedReport] = useState<UserReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [exportingReportId, setExportingReportId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   const selectedPlan = useMemo(() => plans.find((plan) => plan.id === selectedPlanId) ?? null, [plans, selectedPlanId]);
@@ -80,6 +81,32 @@ export default function ReportsPage() {
     }
   }
 
+  async function handleExportReport(report: UserReport) {
+    const session = getStoredSession();
+    if (!session) {
+      setError("登录状态已失效，请重新登录。");
+      return;
+    }
+
+    setExportingReportId(report.id);
+    setError("");
+    try {
+      const blob = await exportReportCsv({ token: session.token, reportId: report.id });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${report.title}-${report.id}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "报告导出失败");
+    } finally {
+      setExportingReportId(null);
+    }
+  }
+
   useEffect(() => {
     loadReports();
   }, []);
@@ -132,34 +159,47 @@ export default function ReportsPage() {
                 <div className="rounded-md border border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无报告，请先从已保存方案生成。</div>
               ) : null}
               {reports.map((report) => (
-                <button
+                <div
                   key={report.id}
-                  type="button"
                   className={`w-full rounded-md border p-3 text-left text-sm ${
                     selectedReport?.id === report.id ? "border-primary bg-primary/5" : "border-border"
                   }`}
-                  onClick={() => setSelectedReport(report)}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{report.title}</span>
-                    <Badge variant={report.status === "generated" ? "success" : "muted"}>{report.status === "generated" ? "已生成" : report.status}</Badge>
+                    <button type="button" className="text-left font-medium" onClick={() => setSelectedReport(report)}>
+                      {report.title}
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={report.status === "generated" ? "success" : "muted"}>{report.status === "generated" ? "已生成" : report.status}</Badge>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title="下载表格"
+                        aria-label="下载表格"
+                        onClick={() => handleExportReport(report)}
+                        disabled={exportingReportId === report.id}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     {new Date(report.created_at).toLocaleString()} · {report.content_json.plan.batch} V{report.content_json.plan.version}
                   </div>
-                </button>
+                </div>
               ))}
             </CardContent>
           </Card>
         </div>
 
-        {selectedReport ? <ReportPreview report={selectedReport} /> : <EmptyReportState />}
+        {selectedReport ? <ReportPreview report={selectedReport} onExport={handleExportReport} isExporting={exportingReportId === selectedReport.id} /> : <EmptyReportState />}
       </div>
     </AppShell>
   );
 }
 
-function ReportPreview({ report }: { report: UserReport }) {
+function ReportPreview({ report, onExport, isExporting }: { report: UserReport; onExport: (report: UserReport) => void; isExporting: boolean }) {
   const content = report.content_json;
   const riskEntries = riskOrder
     .map((risk) => [risk, content.summary.risk_distribution[risk] ?? 0] as const)
@@ -175,7 +215,13 @@ function ReportPreview({ report }: { report: UserReport }) {
               生成时间：{new Date(report.created_at).toLocaleString()} · 数据版本：{report.data_version}
             </CardDescription>
           </div>
-          <Badge variant="success">网页报告</Badge>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="success">网页报告</Badge>
+            <Button variant="outline" size="sm" onClick={() => onExport(report)} disabled={isExporting}>
+              <Download className="h-4 w-4" />
+              {isExporting ? "导出中..." : "下载表格"}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">

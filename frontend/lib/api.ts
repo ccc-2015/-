@@ -577,6 +577,18 @@ export async function getReport({ token, reportId }: { token: string; reportId: 
   return request<UserReport>(`/api/reports/${reportId}`, { token });
 }
 
+export async function exportReportCsv({ token, reportId }: { token: string; reportId: number }) {
+  const response = await fetch(`${API_BASE_URL}/api/reports/${reportId}/export`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (!response.ok) {
+    throw new ApiError("报告导出失败", response.status);
+  }
+  return response.blob();
+}
+
 export async function searchAdmissionGroups({
   token,
   keyword,
