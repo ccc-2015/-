@@ -18,6 +18,7 @@ settings = get_settings()
 SUPPORTED_KNOWLEDGE_EXTENSIONS = {".txt", ".md", ".csv", ".xlsx", ".xls"}
 EMBEDDING_DIMENSIONS = 64
 QUALITY_YEAR_PATTERN = re.compile(r"(20\d{2})")
+MIN_PUBLISH_QUALITY_SCORE = 65
 
 
 async def save_knowledge_upload(file: UploadFile) -> Path:
@@ -57,6 +58,7 @@ def create_document_from_upload(
     source_url: str | None,
     status: str,
     tags: list[str] | None,
+    commit: bool = True,
 ) -> KnowledgeDocument:
     content = extract_knowledge_text(path).strip()
     if not content:
@@ -76,8 +78,9 @@ def create_document_from_upload(
     db.add(document)
     db.flush()
     rebuild_document_chunks(db, document)
-    db.commit()
-    db.refresh(document)
+    if commit:
+        db.commit()
+        db.refresh(document)
     return document
 
 
@@ -119,9 +122,9 @@ def refresh_cleaning_report(db: Session, document: KnowledgeDocument, chunks: li
         )
     scores, issues, metrics = evaluate_document_quality(db, document, chunk_texts)
     overall_score = round(sum(scores.values()) / len(scores)) if scores else 0
-    report = db.scalar(select(KnowledgeCleaningReport).where(KnowledgeCleaningReport.document_id == document.id))
+    report = document.cleaning_report or db.scalar(select(KnowledgeCleaningReport).where(KnowledgeCleaningReport.document_id == document.id))
     if report is None:
-        report = KnowledgeCleaningReport(document_id=document.id)
+        report = KnowledgeCleaningReport(document=document)
         db.add(report)
     report.overall_score = overall_score
     report.status = _quality_status(overall_score, issues)
@@ -135,6 +138,33 @@ def refresh_cleaning_report(db: Session, document: KnowledgeDocument, chunks: li
     report.issues_json = issues
     report.metrics_json = metrics
     return report
+
+
+def validate_document_publishable(db: Session, document: KnowledgeDocument) -> tuple[bool, list[str], KnowledgeCleaningReport]:
+    report = refresh_cleaning_report(db, document)
+    metrics = report.metrics_json or {}
+    issues = report.issues_json or []
+    reasons: list[str] = []
+
+    if report.overall_score < MIN_PUBLISH_QUALITY_SCORE:
+        reasons.append(f"清洗质量评分 {report.overall_score}/100，低于发布阈值 {MIN_PUBLISH_QUALITY_SCORE}。")
+    if report.status == "failed":
+        reasons.append("清洗质量报告状态为未通过。")
+    if int(metrics.get("chunk_count") or 0) <= 0:
+        reasons.append("文档没有可检索切片。")
+    if not (document.source_type or "").strip():
+        reasons.append("缺少来源类型。")
+    if not (document.source_url or "").strip():
+        reasons.append("缺少来源 URL 或原始文件路径。")
+    latest_year = metrics.get("latest_year")
+    if isinstance(latest_year, int) and latest_year < 2026:
+        reasons.append(f"检测到最新年份为 {latest_year}，低于当前 2026 报考基线。")
+    if latest_year is None:
+        reasons.append("未识别到政策或招生数据年份。")
+    if any(issue.get("severity") == "error" for issue in issues):
+        reasons.append("质量报告包含错误级问题。")
+
+    return not reasons, reasons, report
 
 
 def evaluate_document_quality(

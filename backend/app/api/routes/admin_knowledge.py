@@ -14,7 +14,13 @@ from app.schemas.knowledge import (
     KnowledgeDocumentOut,
     KnowledgeDocumentUpdate,
 )
-from app.services.knowledge_service import create_document_from_upload, rebuild_document_chunks, refresh_cleaning_report, save_knowledge_upload
+from app.services.knowledge_service import (
+    create_document_from_upload,
+    rebuild_document_chunks,
+    refresh_cleaning_report,
+    save_knowledge_upload,
+    validate_document_publishable,
+)
 
 router = APIRouter()
 
@@ -67,6 +73,7 @@ def create_document(
     db.add(document)
     db.flush()
     rebuild_document_chunks(db, document)
+    _ensure_publishable_if_needed(db, document, payload.status)
     db.commit()
     db.refresh(document)
     return _document_out(db, document)
@@ -97,8 +104,13 @@ async def upload_document(
             source_url=source_url,
             status=status_value,
             tags=_split_tags(tags),
+            commit=False,
         )
+        _ensure_publishable_if_needed(db, document, status_value)
+        db.commit()
+        db.refresh(document)
     except ValueError as exc:
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return _document_out(db, document)
 
@@ -131,6 +143,7 @@ def update_document(
     document.version += 1
     db.flush()
     rebuild_document_chunks(db, document)
+    _ensure_publishable_if_needed(db, document, document.status)
     db.commit()
     db.refresh(document)
     return _document_out(db, document)
@@ -191,6 +204,18 @@ def _get_document_or_404(db: Session, document_id: int) -> KnowledgeDocument:
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge document not found")
     return document
+
+
+def _ensure_publishable_if_needed(db: Session, document: KnowledgeDocument, target_status: str) -> None:
+    if target_status != "published":
+        return
+    passed, reasons, _ = validate_document_publishable(db, document)
+    if not passed:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="文档未通过发布质量校验：" + "；".join(reasons),
+        )
 
 
 def _document_out(db: Session, document: KnowledgeDocument) -> KnowledgeDocumentOut:

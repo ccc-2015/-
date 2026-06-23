@@ -6,12 +6,11 @@
 
 建议步骤：
 
-1. 基于现有清洗质量报告增加发布前拦截：低分、缺来源、过期年份或无切片的文档不能发布。
-2. 增加跨文档重复检测，结合标题、来源 URL、正文 hash 和相似度识别重复上传。
-3. 评估真实 embedding 模型和成本。
-4. 选择向量存储方案：开发期可保留 SQLite metadata，最终建议 PostgreSQL + pgvector。
-5. 将 `local_hash_v1` 替换为真实 embedding，并保留关键词混合召回。
-6. Agent 引用展示 chunk、document、version、source_url、score、score_detail。
+1. 增加跨文档重复检测，结合标题、来源 URL、正文 hash 和相似度识别重复上传。
+2. 评估真实 embedding 模型和成本。
+3. 选择向量存储方案：开发期可保留 SQLite metadata，最终建议 PostgreSQL + pgvector。
+4. 将 `local_hash_v1` 替换为真实 embedding，并保留关键词混合召回。
+5. Agent 引用展示 chunk、document、version、source_url、score、score_detail。
 
 验收点：
 
