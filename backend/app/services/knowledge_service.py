@@ -6,17 +6,18 @@ from typing import Any
 
 import pandas as pd
 from fastapi import UploadFile
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
+from app.models.knowledge import KnowledgeChunk, KnowledgeCleaningReport, KnowledgeDocument
 from app.models.user import User
 
 settings = get_settings()
 
 SUPPORTED_KNOWLEDGE_EXTENSIONS = {".txt", ".md", ".csv", ".xlsx", ".xls"}
 EMBEDDING_DIMENSIONS = 64
+QUALITY_YEAR_PATTERN = re.compile(r"(20\d{2})")
 
 
 async def save_knowledge_upload(file: UploadFile) -> Path:
@@ -80,7 +81,7 @@ def create_document_from_upload(
     return document
 
 
-def rebuild_document_chunks(db: Session, document: KnowledgeDocument, chunk_size: int = 800, overlap: int = 120) -> int:
+def rebuild_document_chunks(db: Session, document: KnowledgeDocument, chunk_size: int = 800, overlap: int = 120, refresh_report: bool = True) -> int:
     db.execute(delete(KnowledgeChunk).where(KnowledgeChunk.document_id == document.id))
     chunks = split_text(document.content, chunk_size=chunk_size, overlap=overlap)
     for index, chunk in enumerate(chunks):
@@ -105,7 +106,103 @@ def rebuild_document_chunks(db: Session, document: KnowledgeDocument, chunk_size
                 },
             )
         )
+    if refresh_report:
+        refresh_cleaning_report(db, document, chunks=chunks)
     return len(chunks)
+
+
+def refresh_cleaning_report(db: Session, document: KnowledgeDocument, chunks: list[str] | None = None) -> KnowledgeCleaningReport:
+    chunk_texts = chunks if chunks is not None else [chunk.content for chunk in document.chunks]
+    if chunks is None and not chunk_texts and document.id:
+        chunk_texts = list(
+            db.scalars(select(KnowledgeChunk.content).where(KnowledgeChunk.document_id == document.id).order_by(KnowledgeChunk.chunk_index)).all()
+        )
+    scores, issues, metrics = evaluate_document_quality(db, document, chunk_texts)
+    overall_score = round(sum(scores.values()) / len(scores)) if scores else 0
+    report = db.scalar(select(KnowledgeCleaningReport).where(KnowledgeCleaningReport.document_id == document.id))
+    if report is None:
+        report = KnowledgeCleaningReport(document_id=document.id)
+        db.add(report)
+    report.overall_score = overall_score
+    report.status = _quality_status(overall_score, issues)
+    report.text_extract_score = scores["text_extract_score"]
+    report.ocr_confidence = scores["ocr_confidence"]
+    report.metadata_complete_score = scores["metadata_complete_score"]
+    report.dedup_score = scores["dedup_score"]
+    report.table_parse_score = scores["table_parse_score"]
+    report.policy_validity_score = scores["policy_validity_score"]
+    report.chunk_ready_score = scores["chunk_ready_score"]
+    report.issues_json = issues
+    report.metrics_json = metrics
+    return report
+
+
+def evaluate_document_quality(
+    db: Session,
+    document: KnowledgeDocument,
+    chunks: list[str] | None = None,
+) -> tuple[dict[str, int], list[dict[str, str]], dict[str, Any]]:
+    content = document.content or ""
+    chunk_texts = chunks or split_text(content)
+    issues: list[dict[str, str]] = []
+
+    text_length = len(content.strip())
+    line_count = len([line for line in content.splitlines() if line.strip()])
+    duplicated_line_count = _duplicate_line_count(content)
+    duplicate_ratio = duplicated_line_count / line_count if line_count else 0
+    table_like_lines = _table_like_line_count(content)
+    has_table_signal = table_like_lines >= 3 or (document.category or "").lower() in {"table", "score", "plan", "admission"}
+    years = [int(value) for value in QUALITY_YEAR_PATTERN.findall(" ".join(filter(None, [document.title, document.category, content[:1000]])))]
+    latest_year = max(years) if years else None
+    source_url = (document.source_url or "").strip()
+    source_type = (document.source_type or "").strip()
+
+    if text_length < 80:
+        issues.append(_issue("error", "正文过短，无法形成可靠知识库切片。", "text_extract"))
+    elif text_length < 300:
+        issues.append(_issue("warning", "正文内容偏短，建议人工确认是否解析完整。", "text_extract"))
+    if duplicate_ratio > 0.35:
+        issues.append(_issue("warning", "重复行比例较高，可能存在页眉页脚或重复上传内容。", "dedup"))
+    if not document.category:
+        issues.append(_issue("warning", "缺少文档分类，不利于按政策、章程或问答分层检索。", "metadata"))
+    if not source_type:
+        issues.append(_issue("warning", "缺少来源类型。", "metadata"))
+    if not source_url:
+        issues.append(_issue("warning", "缺少来源 URL 或原始文件路径，引用追溯不足。", "metadata"))
+    if source_url and source_url.startswith("http") is False and source_type != "file_upload":
+        issues.append(_issue("warning", "来源 URL 不是可访问链接，请确认是否应标记为文件上传。", "metadata"))
+    if latest_year and latest_year < 2026:
+        issues.append(_issue("warning", f"检测到最新年份为 {latest_year}，可能不适用于 2026 报考。", "validity"))
+    if not latest_year:
+        issues.append(_issue("warning", "未识别到政策或招生数据年份。", "validity"))
+    if has_table_signal and table_like_lines < 3:
+        issues.append(_issue("warning", "文档疑似表格类资料，但未检测到稳定表格结构。", "table"))
+    if not chunk_texts:
+        issues.append(_issue("error", "尚未生成切片，Agent 无法检索此文档。", "chunk"))
+    if chunk_texts and any(len(chunk) < 80 for chunk in chunk_texts):
+        issues.append(_issue("warning", "存在过短切片，可能影响检索命中质量。", "chunk"))
+
+    scores = {
+        "text_extract_score": _text_extract_score(text_length),
+        "ocr_confidence": 100,
+        "metadata_complete_score": _metadata_score(document, latest_year),
+        "dedup_score": _dedup_score(duplicate_ratio),
+        "table_parse_score": _table_score(has_table_signal, table_like_lines),
+        "policy_validity_score": _validity_score(latest_year),
+        "chunk_ready_score": _chunk_score(chunk_texts),
+    }
+    metrics = {
+        "text_length": text_length,
+        "line_count": line_count,
+        "duplicate_line_count": duplicated_line_count,
+        "duplicate_ratio": round(duplicate_ratio, 4),
+        "chunk_count": len(chunk_texts),
+        "min_chunk_size": min((len(chunk) for chunk in chunk_texts), default=0),
+        "max_chunk_size": max((len(chunk) for chunk in chunk_texts), default=0),
+        "table_like_line_count": table_like_lines,
+        "latest_year": latest_year,
+    }
+    return scores, issues, metrics
 
 
 def split_text(text: str, chunk_size: int = 800, overlap: int = 120) -> list[str]:
@@ -178,6 +275,102 @@ def _table_to_text(df: pd.DataFrame) -> str:
         if parts:
             lines.append(f"第 {index + 2} 行 - " + "；".join(parts))
     return "\n".join(lines)
+
+
+def _text_extract_score(text_length: int) -> int:
+    if text_length >= 1000:
+        return 95
+    if text_length >= 300:
+        return 82
+    if text_length >= 80:
+        return 60
+    if text_length > 0:
+        return 30
+    return 0
+
+
+def _metadata_score(document: KnowledgeDocument, latest_year: int | None) -> int:
+    checks = [
+        bool(document.title),
+        bool(document.category),
+        bool(document.source_type),
+        bool(document.source_url),
+        bool(document.tags),
+        bool(latest_year),
+    ]
+    return round(sum(1 for passed in checks if passed) / len(checks) * 100)
+
+
+def _dedup_score(duplicate_ratio: float) -> int:
+    return max(20, round(100 - duplicate_ratio * 180))
+
+
+def _table_score(has_table_signal: bool, table_like_lines: int) -> int:
+    if not has_table_signal:
+        return 100
+    if table_like_lines >= 8:
+        return 90
+    if table_like_lines >= 3:
+        return 72
+    return 45
+
+
+def _validity_score(latest_year: int | None) -> int:
+    if latest_year is None:
+        return 55
+    if latest_year >= 2026:
+        return 95
+    if latest_year == 2025:
+        return 70
+    return 45
+
+
+def _chunk_score(chunks: list[str]) -> int:
+    if not chunks:
+        return 0
+    short_chunks = sum(1 for chunk in chunks if len(chunk) < 80)
+    short_ratio = short_chunks / len(chunks)
+    return max(35, round(95 - short_ratio * 45))
+
+
+def _duplicate_line_count(text: str) -> int:
+    lines = [line.strip() for line in text.splitlines() if len(line.strip()) >= 12]
+    seen: set[str] = set()
+    duplicates = 0
+    for line in lines:
+        normalized = re.sub(r"\s+", "", line)
+        if normalized in seen:
+            duplicates += 1
+        else:
+            seen.add(normalized)
+    return duplicates
+
+
+def _table_like_line_count(text: str) -> int:
+    count = 0
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        separators = stripped.count("；") + stripped.count(",") + stripped.count("\t") + stripped.count("|")
+        key_value_pairs = len(re.findall(r"[\u4e00-\u9fffA-Za-z0-9_]+[:：]", stripped))
+        if separators >= 3 or key_value_pairs >= 3:
+            count += 1
+    return count
+
+
+def _quality_status(overall_score: int, issues: list[dict[str, str]]) -> str:
+    if any(issue["severity"] == "error" for issue in issues):
+        return "failed"
+    if overall_score >= 85:
+        return "passed"
+    if overall_score >= 65:
+        return "warning"
+    return "failed"
+
+
+def _issue(severity: str, message: str, code: str) -> dict[str, str]:
+    return {"severity": severity, "message": message, "code": code}
 
 
 def _is_chinese_text(value: str) -> bool:

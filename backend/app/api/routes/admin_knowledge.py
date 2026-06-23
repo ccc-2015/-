@@ -9,11 +9,12 @@ from app.models.user import User
 from app.schemas.knowledge import (
     KnowledgeChunkOut,
     KnowledgeChunkRebuildResponse,
+    KnowledgeCleaningReportOut,
     KnowledgeDocumentCreate,
     KnowledgeDocumentOut,
     KnowledgeDocumentUpdate,
 )
-from app.services.knowledge_service import create_document_from_upload, rebuild_document_chunks, save_knowledge_upload
+from app.services.knowledge_service import create_document_from_upload, rebuild_document_chunks, refresh_cleaning_report, save_knowledge_upload
 
 router = APIRouter()
 
@@ -156,6 +157,19 @@ def rebuild_chunks(
     chunk_count = rebuild_document_chunks(db, document)
     db.commit()
     return KnowledgeChunkRebuildResponse(document_id=document.id, chunk_count=chunk_count)
+
+
+@router.get("/knowledge/documents/{document_id}/cleaning-report", response_model=KnowledgeCleaningReportOut)
+def get_cleaning_report(
+    document_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> KnowledgeCleaningReportOut:
+    document = _get_document_or_404(db, document_id)
+    report = refresh_cleaning_report(db, document)
+    db.commit()
+    db.refresh(report)
+    return report
 
 
 @router.get("/knowledge/documents/{document_id}/chunks", response_model=list[KnowledgeChunkOut])

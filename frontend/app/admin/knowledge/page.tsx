@@ -7,11 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
   createKnowledgeDocument,
   deleteKnowledgeDocument,
+  getKnowledgeCleaningReport,
   listKnowledgeChunks,
   listKnowledgeDocuments,
   rebuildKnowledgeChunks,
@@ -19,7 +21,13 @@ import {
   uploadKnowledgeDocument
 } from "@/lib/api";
 import { getStoredSession } from "@/lib/auth-store";
-import type { AdminKnowledgeDocument, AdminKnowledgeStatus, KnowledgeChunk, KnowledgeDocumentPayload } from "@/types/domain";
+import type {
+  AdminKnowledgeDocument,
+  AdminKnowledgeStatus,
+  KnowledgeChunk,
+  KnowledgeCleaningReport,
+  KnowledgeDocumentPayload
+} from "@/types/domain";
 
 const emptyForm: KnowledgeDocumentPayload = {
   title: "",
@@ -49,9 +57,25 @@ const pipeline = [
   { name: "人工编辑", status: "available" },
   { name: "审核发布", status: "available" },
   { name: "文件解析", status: "available" },
+  { name: "清洗质检", status: "available" },
   { name: "清洗切片", status: "available" },
   { name: "向量化检索", status: "pending" }
 ] as const;
+
+const qualityStatusMeta: Record<string, { label: string; variant: "success" | "warning" | "danger" | "muted" }> = {
+  passed: { label: "通过", variant: "success" },
+  warning: { label: "需复核", variant: "warning" },
+  failed: { label: "未通过", variant: "danger" }
+};
+
+const qualityScoreItems: Array<{ key: keyof KnowledgeCleaningReport; label: string }> = [
+  { key: "text_extract_score", label: "文本抽取" },
+  { key: "metadata_complete_score", label: "元数据" },
+  { key: "dedup_score", label: "去重" },
+  { key: "table_parse_score", label: "表格结构" },
+  { key: "policy_validity_score", label: "政策有效期" },
+  { key: "chunk_ready_score", label: "切片就绪" }
+];
 
 function tagsToText(tags?: string[] | null) {
   return tags?.join("、") ?? "";
@@ -108,12 +132,14 @@ export default function KnowledgePage() {
   const [tagText, setTagText] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [chunks, setChunks] = useState<KnowledgeChunk[]>([]);
+  const [cleaningReport, setCleaningReport] = useState<KnowledgeCleaningReport | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingChunks, setIsLoadingChunks] = useState(false);
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
 
   const selectedMeta = selectedDocument ? statusMeta[selectedDocument.status] : null;
   const publishedCount = useMemo(() => documents.filter((document) => document.status === "published").length, [documents]);
@@ -142,8 +168,10 @@ export default function KnowledgePage() {
           setForm(toForm(refreshed));
           setTagText(tagsToText(refreshed.tags));
           await loadChunks(refreshed.id);
+          await loadCleaningReport(refreshed.id);
         } else {
           setChunks([]);
+          setCleaningReport(null);
         }
       }
     } catch (err) {
@@ -169,6 +197,7 @@ export default function KnowledgePage() {
     setTagText("");
     setUploadFile(null);
     setChunks([]);
+    setCleaningReport(null);
     setMessage("");
     setError("");
   }
@@ -178,6 +207,7 @@ export default function KnowledgePage() {
     setForm(toForm(document));
     setTagText(tagsToText(document.tags));
     loadChunks(document.id);
+    loadCleaningReport(document.id);
     setMessage("");
     setError("");
   }
@@ -195,6 +225,22 @@ export default function KnowledgePage() {
       setChunks([]);
     } finally {
       setIsLoadingChunks(false);
+    }
+  }
+
+  async function loadCleaningReport(documentId: number) {
+    const session = getStoredSession();
+    if (!session) {
+      return;
+    }
+
+    setIsLoadingReport(true);
+    try {
+      setCleaningReport(await getKnowledgeCleaningReport({ token: session.token, documentId }));
+    } catch {
+      setCleaningReport(null);
+    } finally {
+      setIsLoadingReport(false);
     }
   }
 
@@ -224,6 +270,7 @@ export default function KnowledgePage() {
       setTagText(tagsToText(saved.tags));
       setMessage(selectedDocument ? "知识库文档已更新。" : "知识库文档已创建。");
       await loadChunks(saved.id);
+      await loadCleaningReport(saved.id);
       await loadDocuments({ keyword, status, category });
     } catch (err) {
       setError(err instanceof Error ? err.message : "知识库文档保存失败");
@@ -273,6 +320,7 @@ export default function KnowledgePage() {
       setUploadFile(null);
       setMessage(`已上传并解析「${saved.title}」，生成 ${saved.chunk_count} 个切片。`);
       await loadChunks(saved.id);
+      await loadCleaningReport(saved.id);
       await loadDocuments({ keyword, status, category });
     } catch (err) {
       setError(err instanceof Error ? err.message : "知识库文件上传失败");
@@ -294,6 +342,7 @@ export default function KnowledgePage() {
       const result = await rebuildKnowledgeChunks({ token: session.token, documentId: selectedDocument.id });
       setMessage(`切片已重建，共 ${result.chunk_count} 个切片。`);
       await loadChunks(selectedDocument.id);
+      await loadCleaningReport(selectedDocument.id);
       await loadDocuments({ keyword, status, category });
     } catch (err) {
       setError(err instanceof Error ? err.message : "切片重建失败");
@@ -585,6 +634,76 @@ export default function KnowledgePage() {
               <div className="mt-5 rounded-md border border-border p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
+                    <div className="text-sm font-medium">清洗质量报告</div>
+                    <div className="mt-1 text-xs text-muted-foreground">检查文本抽取、元数据、去重、有效期和切片就绪度</div>
+                  </div>
+                  {cleaningReport ? (
+                    <Badge variant={(qualityStatusMeta[cleaningReport.status] ?? qualityStatusMeta.warning).variant}>
+                      {(qualityStatusMeta[cleaningReport.status] ?? qualityStatusMeta.warning).label}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">{isLoadingReport ? "加载中" : "暂无"}</Badge>
+                  )}
+                </div>
+                {cleaningReport ? (
+                  <div className="mt-3 space-y-3">
+                    <div className="rounded-md bg-muted/40 p-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">综合评分</span>
+                        <span>{cleaningReport.overall_score}/100</span>
+                      </div>
+                      <Progress value={cleaningReport.overall_score} className="mt-2" />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {qualityScoreItems.map((item) => {
+                        const value = Number(cleaningReport[item.key] ?? 0);
+                        return (
+                          <div key={item.key} className="rounded-md border border-border p-3">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-medium">{item.label}</span>
+                              <span className="text-muted-foreground">{value}/100</span>
+                            </div>
+                            <Progress value={value} className="mt-2" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {cleaningReport.issues_json?.length ? (
+                      <div className="rounded-md border border-border p-3">
+                        <div className="text-sm font-medium">质量问题</div>
+                        <div className="mt-2 space-y-2">
+                          {cleaningReport.issues_json.map((issue) => (
+                            <div key={`${issue.code}-${issue.message}`} className="flex items-start gap-2 text-xs text-muted-foreground">
+                              <Badge variant={issue.severity === "error" ? "danger" : "warning"}>
+                                {issue.severity === "error" ? "错误" : "提示"}
+                              </Badge>
+                              <span>{issue.message}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">未发现明显质量问题。</div>
+                    )}
+                    <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                      <div>正文长度：{String(cleaningReport.metrics_json?.text_length ?? 0)}</div>
+                      <div>切片数量：{String(cleaningReport.metrics_json?.chunk_count ?? 0)}</div>
+                      <div>重复行：{String(cleaningReport.metrics_json?.duplicate_line_count ?? 0)}</div>
+                      <div>最新年份：{String(cleaningReport.metrics_json?.latest_year ?? "未识别")}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-md border border-border px-3 py-8 text-center text-sm text-muted-foreground">
+                    {isLoadingReport ? "正在生成清洗质量报告..." : "暂无清洗质量报告"}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {selectedDocument ? (
+              <div className="mt-5 rounded-md border border-border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
                     <div className="text-sm font-medium">切片预览</div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       当前 {selectedDocument.chunk_count} 个切片，Agent 政策检索会优先使用已发布文档
@@ -620,7 +739,7 @@ export default function KnowledgePage() {
           <CardDescription>当前已接入文档管理、文件解析和切片重建；向量检索仍待后端实现</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {pipeline.map((step) => (
               <div key={step.name} className="flex items-center gap-3 rounded-md border border-border p-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded bg-primary/10 text-primary">

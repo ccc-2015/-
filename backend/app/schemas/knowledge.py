@@ -57,3 +57,29 @@ class KnowledgeChunkOut(BaseModel):
 class KnowledgeChunkRebuildResponse(BaseModel):
     document_id: int
     chunk_count: int
+
+
+class KnowledgeCleaningIssue(BaseModel):
+    severity: str
+    message: str
+    code: str
+
+
+class KnowledgeCleaningReportOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    document_id: int
+    overall_score: int
+    status: str
+    text_extract_score: int
+    ocr_confidence: int
+    metadata_complete_score: int
+    dedup_score: int
+    table_parse_score: int
+    policy_validity_score: int
+    chunk_ready_score: int
+    issues_json: list[KnowledgeCleaningIssue] | None = None
+    metrics_json: dict | None = None
+    created_at: datetime
+    updated_at: datetime

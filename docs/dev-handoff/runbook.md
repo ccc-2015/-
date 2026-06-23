@@ -101,4 +101,5 @@ netstat -ano | Select-String ':3000'
 - `POST /api/admin/knowledge/documents/upload`
 - `POST /api/admin/knowledge/documents/{document_id}/chunks/rebuild`
 - `GET /api/admin/knowledge/documents/{document_id}/chunks`
+- `GET /api/admin/knowledge/documents/{document_id}/cleaning-report`
 - `POST /api/agent/chat`

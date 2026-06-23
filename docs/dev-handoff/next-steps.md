@@ -6,8 +6,8 @@
 
 建议步骤：
 
-1. 增加知识库切片质量字段或质量报告表。
-2. 增加重复文档、空内容、低质量切片检查。
+1. 基于现有清洗质量报告增加发布前拦截：低分、缺来源、过期年份或无切片的文档不能发布。
+2. 增加跨文档重复检测，结合标题、来源 URL、正文 hash 和相似度识别重复上传。
 3. 评估真实 embedding 模型和成本。
 4. 选择向量存储方案：开发期可保留 SQLite metadata，最终建议 PostgreSQL + pgvector。
 5. 将 `local_hash_v1` 替换为真实 embedding，并保留关键词混合召回。
@@ -15,8 +15,9 @@
 
 验收点：
 
-- 上传一份政策文档后，Agent 能命中具体切片。
-- 引用中包含 `document_id`、`chunk_id`、`version`、`score_detail`。
+- 管理端能查看每份文档的清洗质量报告和问题列表。
+- 低质量文档发布前有明确拦截或复核提示。
+- Agent 引用中包含 `document_id`、`chunk_id`、`version`、`score_detail`。
 - 不发布的文档不会被 Agent 检索。
 
 ## 优先级 2：志愿方案增强

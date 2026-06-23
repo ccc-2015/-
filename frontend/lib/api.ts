@@ -13,6 +13,7 @@ import type {
   ImportUploadResponse,
   KnowledgeChunk,
   KnowledgeChunkRebuildResponse,
+  KnowledgeCleaningReport,
   KnowledgeDocumentPayload,
   PolicyCheckItem,
   PolicyCheckResponse,
@@ -371,6 +372,10 @@ export async function rebuildKnowledgeChunks({ token, documentId }: { token: str
 
 export async function listKnowledgeChunks({ token, documentId }: { token: string; documentId: number }) {
   return request<KnowledgeChunk[]>(`/api/admin/knowledge/documents/${documentId}/chunks`, { token });
+}
+
+export async function getKnowledgeCleaningReport({ token, documentId }: { token: string; documentId: number }) {
+  return request<KnowledgeCleaningReport>(`/api/admin/knowledge/documents/${documentId}/cleaning-report`, { token });
 }
 
 export async function listBatchLines(token: string, filters: { year?: string; subjectTrack?: string; batch?: string } = {}) {

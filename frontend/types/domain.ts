@@ -200,6 +200,30 @@ export interface KnowledgeChunkRebuildResponse {
   chunk_count: number;
 }
 
+export interface KnowledgeCleaningIssue {
+  severity: "error" | "warning" | string;
+  message: string;
+  code: string;
+}
+
+export interface KnowledgeCleaningReport {
+  id: number;
+  document_id: number;
+  overall_score: number;
+  status: "passed" | "warning" | "failed" | string;
+  text_extract_score: number;
+  ocr_confidence: number;
+  metadata_complete_score: number;
+  dedup_score: number;
+  table_parse_score: number;
+  policy_validity_score: number;
+  chunk_ready_score: number;
+  issues_json?: KnowledgeCleaningIssue[] | null;
+  metrics_json?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CleaningReport {
   documentId: string;
   textExtractScore: number;
