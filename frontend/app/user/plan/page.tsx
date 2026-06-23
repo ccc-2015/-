@@ -1,15 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GripVertical, RefreshCcw, ShieldCheck } from "lucide-react";
+import { GripVertical, RefreshCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { checkPolicy, generateRecommendations } from "@/lib/api";
+import {
+  checkPolicy,
+  checkVolunteerPlan,
+  deleteVolunteerPlan,
+  generateRecommendations,
+  getCurrentVolunteerPlan,
+  saveCurrentVolunteerPlan
+} from "@/lib/api";
 import { getStoredSession } from "@/lib/auth-store";
 import { formatNumber } from "@/lib/utils";
-import type { GeneratedRecommendationItem, PolicyCheckResponse, RiskLevel } from "@/types/domain";
+import type { GeneratedRecommendationItem, PolicyCheckResponse, RiskLevel, VolunteerPlan } from "@/types/domain";
 
 const riskVariant = {
   冲: "warning",
@@ -23,16 +30,63 @@ export default function PlanPage() {
   const [items, setItems] = useState<GeneratedRecommendationItem[]>([]);
   const [batch, setBatch] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [savedPlan, setSavedPlan] = useState<VolunteerPlan | null>(null);
   const [policyResult, setPolicyResult] = useState<PolicyCheckResponse | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+
+  function restoreItemsFromPlan(plan: VolunteerPlan) {
+    return plan.items
+      .slice()
+      .sort((left, right) => left.order - right.order)
+      .map((item) => item.snapshot_json as GeneratedRecommendationItem | null)
+      .filter((item): item is GeneratedRecommendationItem => Boolean(item));
+  }
 
   async function loadPlanCandidates() {
     const session = getStoredSession();
     if (!session) {
       setError("登录状态已失效，请重新登录。");
       setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+    try {
+      const existingPlan = await getCurrentVolunteerPlan(session.token);
+      if (existingPlan) {
+        const restoredItems = restoreItemsFromPlan(existingPlan);
+        setSavedPlan(existingPlan);
+        setBatch(existingPlan.batch);
+        setItems(restoredItems);
+        setWarnings(restoredItems.length ? [] : ["已找到保存的方案，但缺少推荐快照，请刷新候选后重新保存。"]);
+        setPolicyResult(null);
+        return;
+      }
+      const result = await generateRecommendations({
+        token: session.token,
+        limit: 48,
+        onlyEligible: true
+      });
+      setItems(result.items);
+      setBatch(result.batch ?? null);
+      setWarnings(result.warnings);
+      setSavedPlan(null);
+      setPolicyResult(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "方案候选加载失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function refreshRecommendations() {
+    const session = getStoredSession();
+    if (!session) {
+      setError("登录状态已失效，请重新登录。");
       return;
     }
 
@@ -55,6 +109,67 @@ export default function PlanPage() {
     }
   }
 
+  async function handleSavePlan() {
+    const session = getStoredSession();
+    if (!session) {
+      setError("登录状态已失效，请重新登录。");
+      return;
+    }
+    if (!batch || !items.length) {
+      setError("当前没有可保存的方案。");
+      return;
+    }
+
+    setIsSaving(true);
+    setError("");
+    try {
+      const plan = await saveCurrentVolunteerPlan({
+        token: session.token,
+        payload: {
+          title: `${batch}志愿方案`,
+          batch,
+          source: "recommendation",
+          metadata: { item_count: items.length },
+          items: items.map((item, index) => ({
+            group_id: item.group_id,
+            order: index + 1,
+            risk_level: item.risk_level,
+            match_score: item.match_score,
+            snapshot: item
+          }))
+        }
+      });
+      setSavedPlan(plan);
+      setPolicyResult(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "方案保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeletePlan() {
+    const session = getStoredSession();
+    if (!session || !savedPlan) {
+      return;
+    }
+    if (!window.confirm(`确认删除「${savedPlan.title}」？`)) {
+      return;
+    }
+
+    setIsSaving(true);
+    setError("");
+    try {
+      await deleteVolunteerPlan({ token: session.token, planId: savedPlan.id });
+      setSavedPlan(null);
+      setPolicyResult(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "方案删除失败");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   useEffect(() => {
     loadPlanCandidates();
   }, []);
@@ -69,7 +184,7 @@ export default function PlanPage() {
       setError("当前推荐结果没有批次信息，无法进行规则校验。");
       return;
     }
-    if (!items.length) {
+    if (!items.length && !savedPlan) {
       setError("当前没有可校验的院校专业组。");
       return;
     }
@@ -77,14 +192,16 @@ export default function PlanPage() {
     setIsChecking(true);
     setError("");
     try {
-      const result = await checkPolicy({
-        token: session.token,
-        batch,
-        groupItems: items.map((item, index) => ({
-          group_id: item.group_id,
-          order: index + 1
-        }))
-      });
+      const result = savedPlan
+        ? (await checkVolunteerPlan({ token: session.token, planId: savedPlan.id })).policy_result
+        : await checkPolicy({
+            token: session.token,
+            batch,
+            groupItems: items.map((item, index) => ({
+              group_id: item.group_id,
+              order: index + 1
+            }))
+          });
       setPolicyResult(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "规则校验失败");
@@ -101,17 +218,31 @@ export default function PlanPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle>{batch ? `${batch}方案草案` : "方案草案"}</CardTitle>
-                <CardDescription>当前按推荐引擎排序生成候选，后续可扩展手动调序和保存方案</CardDescription>
+                <CardDescription>
+                  {savedPlan
+                    ? `已保存：${savedPlan.title} · ${new Date(savedPlan.updated_at).toLocaleString()}`
+                    : "当前按推荐引擎排序生成候选，可保存为个人志愿方案"}
+                </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={loadPlanCandidates} disabled={isLoading}>
+                <Button variant="outline" onClick={refreshRecommendations} disabled={isLoading}>
                   <RefreshCcw className="h-4 w-4" />
                   {isLoading ? "加载中..." : "刷新候选"}
                 </Button>
-                <Button variant="outline" onClick={handlePolicyCheck} disabled={isChecking || isLoading || items.length === 0}>
+                <Button variant="outline" onClick={handleSavePlan} disabled={isSaving || isLoading || items.length === 0}>
+                  <Save className="h-4 w-4" />
+                  {isSaving ? "保存中..." : savedPlan ? "覆盖保存" : "保存方案"}
+                </Button>
+                <Button variant="outline" onClick={handlePolicyCheck} disabled={isChecking || isLoading || (!savedPlan && items.length === 0)}>
                   <ShieldCheck className="h-4 w-4" />
                   {isChecking ? "校验中..." : "二次校验"}
                 </Button>
+                {savedPlan ? (
+                  <Button variant="outline" onClick={handleDeletePlan} disabled={isSaving}>
+                    <Trash2 className="h-4 w-4" />
+                    删除方案
+                  </Button>
+                ) : null}
                 <Button disabled>导出方案</Button>
               </div>
             </div>

@@ -20,7 +20,10 @@ import type {
   RecommendationGenerateResponse,
   ScoreSegment,
   SearchGroupsResponse,
-  StudentProfile
+  StudentProfile,
+  VolunteerPlan,
+  VolunteerPlanCheckResponse,
+  VolunteerPlanSaveRequest
 } from "@/types/domain";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -469,6 +472,43 @@ export async function checkPolicy({
       batch,
       group_items: groupItems
     })
+  });
+}
+
+export async function getCurrentVolunteerPlan(token: string, batch?: string) {
+  return request<VolunteerPlan | null>(
+    withQuery("/api/volunteer/plans/current", {
+      batch
+    }),
+    { token }
+  );
+}
+
+export async function saveCurrentVolunteerPlan({
+  token,
+  payload
+}: {
+  token: string;
+  payload: VolunteerPlanSaveRequest;
+}) {
+  return request<VolunteerPlan>("/api/volunteer/plans/current", {
+    method: "PUT",
+    token,
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteVolunteerPlan({ token, planId }: { token: string; planId: number }) {
+  await request<void>(`/api/volunteer/plans/${planId}`, {
+    method: "DELETE",
+    token
+  });
+}
+
+export async function checkVolunteerPlan({ token, planId }: { token: string; planId: number }) {
+  return request<VolunteerPlanCheckResponse>(`/api/volunteer/plans/${planId}/check`, {
+    method: "POST",
+    token
   });
 }
 

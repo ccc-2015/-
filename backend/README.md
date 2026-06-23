@@ -29,6 +29,10 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 - `POST /api/admission/search-groups`
 - `GET /api/admission/groups/{group_id}`
 - `POST /api/recommendations/generate`
+- `GET /api/volunteer/plans/current`
+- `PUT /api/volunteer/plans/current`
+- `DELETE /api/volunteer/plans/{plan_id}`
+- `POST /api/volunteer/plans/{plan_id}/check`
 - `GET /api/admin/users`
 - `POST /api/admin/users`
 - `PATCH /api/admin/users/{user_id}`
@@ -66,4 +70,4 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 - `admission_plans`
 - `historical_admissions`
 
-当前知识库已支持文本型文档的创建、查询、发布、归档、删除，以及 `.txt`、`.md`、`.csv`、`.xlsx`、`.xls` 文件上传解析和切片重建。切片会生成 `local_hash_v1` 轻量向量，Agent 政策问答使用本地 hash 向量、关键词命中、标题和标签的混合排序。后续建议按规划书继续补齐清洗质量报告、真实 embedding/pgvector 检索、志愿方案保存和报告生成流程。
+当前知识库已支持文本型文档的创建、查询、发布、归档、删除，以及 `.txt`、`.md`、`.csv`、`.xlsx`、`.xls` 文件上传解析和切片重建。切片会生成 `local_hash_v1` 轻量向量，Agent 政策问答使用本地 hash 向量、关键词命中、标题和标签的混合排序。志愿方案已支持按用户和批次保存、读取、删除和规则校验。后续建议按规划书继续补齐清洗质量报告、真实 embedding/pgvector 检索、报告生成和管理端运营闭环。

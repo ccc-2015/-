@@ -382,6 +382,51 @@ export interface PolicyCheckResponse {
   parallel_volunteer_rule: string;
 }
 
+export interface VolunteerPlanItemPayload {
+  group_id: number;
+  order: number;
+  risk_level?: string | null;
+  match_score?: number | null;
+  notes?: string | null;
+  snapshot?: unknown;
+}
+
+export interface VolunteerPlanItem {
+  id: number;
+  group_id: number;
+  order: number;
+  risk_level?: string | null;
+  match_score?: number | null;
+  notes?: string | null;
+  snapshot_json?: Record<string, unknown> | null;
+}
+
+export interface VolunteerPlan {
+  id: number;
+  user_id: number;
+  title: string;
+  batch: string;
+  status: string;
+  source: string;
+  metadata_json?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  items: VolunteerPlanItem[];
+}
+
+export interface VolunteerPlanSaveRequest {
+  title?: string | null;
+  batch: string;
+  items: VolunteerPlanItemPayload[];
+  source?: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface VolunteerPlanCheckResponse {
+  plan: VolunteerPlan;
+  policy_result: PolicyCheckResponse;
+}
+
 export interface RankLookupResponse {
   year: number;
   subject_track: string;
